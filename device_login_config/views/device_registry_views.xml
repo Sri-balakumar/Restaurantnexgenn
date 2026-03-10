@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ================================================================
+         List View
+    ================================================================ -->
+    <record id="device_registry_list_view" model="ir.ui.view">
+        <field name="name">device.registry.list</field>
+        <field name="model">device.registry</field>
+        <field name="arch" type="xml">
+            <list string="Registered Devices" default_order="last_login desc">
+                <field name="device_name" string="Device Name"/>
+                <field name="device_id"   string="Device UUID"/>
+                <field name="base_url"    string="Base URL"/>
+                <field name="database_name" string="Database"/>
+                <field name="last_login"  string="Last Login"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ================================================================
+         Form View
+    ================================================================ -->
+    <record id="device_registry_form_view" model="ir.ui.view">
+        <field name="name">device.registry.form</field>
+        <field name="model">device.registry</field>
+        <field name="arch" type="xml">
+            <form string="Device Registry Entry">
+                <sheet>
+                    <group col="2">
+                        <group string="Device Information">
+                            <field name="device_name"/>
+                            <field name="device_id"/>
+                        </group>
+                        <group string="Connection Details">
+                            <field name="base_url"/>
+                            <field name="database_name"/>
+                        </group>
+                    </group>
+                    <group string="Login History">
+                        <field name="last_login"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ================================================================
+         Search View
+    ================================================================ -->
+    <record id="device_registry_search_view" model="ir.ui.view">
+        <field name="name">device.registry.search</field>
+        <field name="model">device.registry</field>
+        <field name="arch" type="xml">
+            <search string="Search Devices">
+                <field name="device_name" string="Device Name"/>
+                <field name="device_id"   string="Device UUID"/>
+                <field name="database_name" string="Database"/>
+                <group>
+                    <filter string="Database" name="group_db" context="{'group_by': 'database_name'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ================================================================
+         Window Action
+    ================================================================ -->
+    <record id="action_device_registry" model="ir.actions.act_window">
+        <field name="name">Registered Devices</field>
+        <field name="res_model">device.registry</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No devices registered yet.
+            </p>
+            <p>
+                Devices register automatically the first time they access
+                the system. You can deactivate a device here to force it
+                back to the configuration page.
+            </p>
+        </field>
+    </record>
+
+    <!-- ================================================================
+         Menu Items  (placed under Technical for admin access)
+    ================================================================ -->
+    <menuitem
+        id="menu_device_registry_root"
+        name="Device Registry"
+        sequence="90"
+        groups="base.group_system"/>
+
+    <menuitem
+        id="menu_device_registry_devices"
+        name="Registered Devices"
+        parent="menu_device_registry_root"
+        action="action_device_registry"
+        sequence="10"
+        groups="base.group_system"/>
+
+</odoo>
