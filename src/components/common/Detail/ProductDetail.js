@@ -369,139 +369,87 @@ const ProductDetail = ({ navigation, route }) => {
       <RoundedScrollContainer>
         {details && Object.keys(details).length > 0 ? (
           <>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-              <View style={{ width: '50%' }}>
-                <TouchableOpacity activeOpacity={0.9} onPress={() => setImageModalVisible(true)}>
-                  <View style={{ width: '100%', height: 260, justifyContent: 'center', alignItems: 'center' }}>
-                    {isImageLoading && (
-                      <ActivityIndicator size="large" color={COLORS.primaryThemeColor} style={{ position: 'absolute' }} />
-                    )}
-                    <Image
-                      source={
-                        details.image_url
-                          ? (typeof details.image_url === 'string' && !details.image_url.startsWith('data:') && details.image_url.length > 100
-                              ? { uri: details.image_url }
-                              : { uri: details.image_url })
-                          : require('@assets/images/error/error.png')
-                      }
-                      style={{ width: '100%', height: 260 }}
-                      resizeMode="contain"
-                      onLoadStart={() => setIsImageLoading(true)}
-                      onLoadEnd={() => setIsImageLoading(false)}
-                    />
-                  </View>
-                </TouchableOpacity>
-              </View>
-              <View style={{ width: '50%', padding: 10 }}>
-                <Text style={{ fontSize: 18, fontFamily: FONT_FAMILY.urbanistBold }}>
-                  {(details.product_name || details.name || 'Product').trim()}
-                </Text>
-                {details.product_description && (
-                  <Text style={{ marginTop: 10, fontFamily: FONT_FAMILY.urbanistSemiBold }}>
-                    {details.product_description}
-                  </Text>
-                )}
-                {details.alternateproduct?.length > 0 && (
-                  <View style={{ marginTop: 10 }}>
-                    <Text style={{ fontFamily: FONT_FAMILY.urbanistSemiBold }}>
-                      Alternate Products:
-                    </Text>
-                    {details.alternateproduct.map((product) => (
-                      <Text
-                        key={product._id || product.id}
-                        style={{ fontFamily: FONT_FAMILY.urbanistSemiBold }}
-                      >
-                        {product?.product_name}
-                      </Text>
-                    ))}
-                  </View>
-                )}
-              </View>
+            {/* ── Product image card ── */}
+            <View style={detailStyles.imageCard}>
+              <TouchableOpacity activeOpacity={0.9} onPress={() => setImageModalVisible(true)}>
+                <View style={detailStyles.imageBox}>
+                  {isImageLoading && (
+                    <ActivityIndicator size="large" color={COLORS.primaryThemeColor} style={{ position: 'absolute' }} />
+                  )}
+                  <Image
+                    source={details.image_url ? { uri: details.image_url } : require('@assets/images/error/error.png')}
+                    style={detailStyles.productImage}
+                    resizeMode="contain"
+                    onLoadStart={() => setIsImageLoading(true)}
+                    onLoadEnd={() => setIsImageLoading(false)}
+                  />
+                </View>
+              </TouchableOpacity>
+              <Text style={detailStyles.productName}>
+                {(details.product_name || details.name || 'Product').trim()}
+              </Text>
+              {details.product_description ? (
+                <Text style={detailStyles.productDesc}>{details.product_description}</Text>
+              ) : null}
             </View>
 
-            <View style={{ padding: 10, marginTop: route?.params?.fromPOS ? 40 : 20 }}>
-              <Text style={{ fontFamily: FONT_FAMILY.urbanistBold, fontSize: 20 }}>
-                Details:
-              </Text>
+            {/* ── Details card ── */}
+            <View style={detailStyles.infoCard}>
+              <View style={detailStyles.sectionHeader}>
+                <View style={detailStyles.sectionDot} />
+                <Text style={detailStyles.sectionTitle}>Details</Text>
+              </View>
 
-              {!route?.params?.fromPOS && (
-                <View>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 12 }}>
-                    <Text style={{ width: '50%', fontFamily: FONT_FAMILY.urbanistSemiBold, fontSize: 18 }}>
-                      Category:
-                    </Text>
-                    <Text style={{ width: '50%', fontFamily: FONT_FAMILY.urbanistSemiBold, fontSize: 18 }}>
-                      {
-                        details?.category?.category_name          // old backend
-                        || (Array.isArray(details?.categ_id)      // Odoo many2one
-                            ? details.categ_id[1]
-                            : null)
-                        || details?.category_name                 // if you mapped this in fetchProductsOdoo
-                        || 'N/A'
-                      }
+              {(() => {
+                const categoryVal =
+                  details?.category?.category_name
+                  || (Array.isArray(details?.categ_id) ? details.categ_id[1] : null)
+                  || details?.category_name || 'N/A';
+                const price = (details.cost ?? details.price ?? 0).toString();
+                const minPrice = (details.minimal_sales_price ?? 'N/A').toString();
+                const code = details.product_code ?? details.code ?? details.default_code ?? 'N/A';
+                const stock = details.total_product_quantity ?? 'N/A';
+
+                const rows = route?.params?.fromPOS
+                  ? [
+                      { label: 'Category', value: categoryVal },
+                      { label: 'Price', value: `${price} ${currency || ''}`, highlight: true },
+                    ]
+                  : [
+                      { label: 'Category', value: categoryVal },
+                      { label: 'Price', value: `${price} ${currency || ''}`, highlight: true },
+                      { label: 'Min Sales Price', value: `${minPrice} ${currency || ''}` },
+                      { label: 'Product Code', value: code, accent: true },
+                      { label: 'Stocks on Hand', value: String(stock) },
+                    ];
+
+                return rows.map(({ label, value, highlight, accent }, i) => (
+                  <View key={i} style={detailStyles.row}>
+                    <Text style={detailStyles.rowLabel}>{label}</Text>
+                    <Text style={[detailStyles.rowValue, highlight && detailStyles.rowHighlight, accent && detailStyles.rowAccent]}>
+                      {value}
                     </Text>
                   </View>
-
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 12 }}>
-                    <Text style={{ width: '50%', fontFamily: FONT_FAMILY.urbanistSemiBold, fontSize: 18 }}>
-                      Price:
-                    </Text>
-                    <Text style={{ width: '50%', fontFamily: FONT_FAMILY.urbanistSemiBold, fontSize: 18 }}>
-                      {(details.cost ?? details.price ?? 0).toString()} {currency || ''}
-                    </Text>
-                  </View>
-
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 12 }}>
-                    <Text style={{ width: '50%', fontFamily: FONT_FAMILY.urbanistSemiBold, fontSize: 18 }}>
-                      Minimum Sales Price:
-                    </Text>
-                    <Text style={{ width: '50%', fontFamily: FONT_FAMILY.urbanistSemiBold, fontSize: 18 }}>
-                      {(details.minimal_sales_price ?? 'N/A').toString()} {currency || ''}
-                    </Text>
-                  </View>
-
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 12 }}>
-                    <Text style={{ width: '50%', fontFamily: FONT_FAMILY.urbanistSemiBold, fontSize: 18 }}>
-                      Product Code:
-                    </Text>
-                    <Text style={{ width: '50%', fontFamily: FONT_FAMILY.urbanistSemiBold, fontSize: 18 }}>
-                      {details.product_code ?? details.code ?? details.default_code ?? 'N/A'}
-                    </Text>
-                  </View>
-
-                  {/* Stocks on hand field */}
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 12 }}>
-                    <Text style={{ width: '50%', fontFamily: FONT_FAMILY.urbanistSemiBold, fontSize: 18 }}>
-                      Stocks on hand:
-                    </Text>
-                    <Text style={{ width: '50%', fontFamily: FONT_FAMILY.urbanistSemiBold, fontSize: 18 }}>
-                      {details.total_product_quantity ?? 'N/A'}
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {/* Always show category and price at top for POS */}
-              {route?.params?.fromPOS && (
-                <View style={{ marginBottom: 12 }}>
-                  <Text style={{ fontFamily: FONT_FAMILY.urbanistSemiBold, fontSize: 18 }}>
-                    Category: {details?.category?.category_name
-                      || (Array.isArray(details?.categ_id) ? details.categ_id[1] : null)
-                      || details?.category_name
-                      || 'N/A'}
-                  </Text>
-                  <Text style={{ fontFamily: FONT_FAMILY.urbanistSemiBold, fontSize: 18, marginTop: 4 }}>
-                    Price: {(details.cost ?? details.price ?? 0).toString()} {currency || ''}
-                  </Text>
-                </View>
-              )}
+                ));
+              })()}
             </View>
 
             {renderStockDetails()}
             {renderInventoryBoxDetails()}
 
-            <View style={{ flex: 1 }} />
-            {/* Add-to-cart button removed per request (hotel product details view) */}
+            {details.alternateproduct?.length > 0 && (
+              <View style={detailStyles.infoCard}>
+                <View style={detailStyles.sectionHeader}>
+                  <View style={detailStyles.sectionDot} />
+                  <Text style={detailStyles.sectionTitle}>Alternate Products</Text>
+                </View>
+                {details.alternateproduct.map((product) => (
+                  <Text key={product._id || product.id} style={detailStyles.altProduct}>
+                    • {product?.product_name}
+                  </Text>
+                ))}
+              </View>
+            )}
           </>
         ) : (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -563,6 +511,112 @@ const ProductDetail = ({ navigation, route }) => {
 export default ProductDetail;
 
 const { width, height } = Dimensions.get('window');
+
+const detailStyles = StyleSheet.create({
+  imageCard: {
+    margin: 12,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    padding: 16,
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  imageBox: {
+    width: width * 0.55,
+    height: 200,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f7ff',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  productImage: {
+    width: width * 0.5,
+    height: 190,
+  },
+  productName: {
+    fontSize: 18,
+    fontFamily: FONT_FAMILY.urbanistBold,
+    color: '#2E294E',
+    textAlign: 'center',
+    marginTop: 14,
+  },
+  productDesc: {
+    fontSize: 13,
+    color: '#888',
+    textAlign: 'center',
+    marginTop: 6,
+    fontFamily: FONT_FAMILY.urbanistRegular,
+    lineHeight: 18,
+  },
+  infoCard: {
+    marginHorizontal: 12,
+    marginBottom: 12,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    padding: 16,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionDot: {
+    width: 4,
+    height: 18,
+    borderRadius: 2,
+    backgroundColor: '#F47B20',
+    marginRight: 8,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontFamily: FONT_FAMILY.urbanistBold,
+    color: '#2E294E',
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  rowLabel: {
+    fontSize: 13,
+    fontFamily: FONT_FAMILY.urbanistSemiBold,
+    color: '#888',
+    flex: 1,
+  },
+  rowValue: {
+    fontSize: 13,
+    fontFamily: FONT_FAMILY.urbanistBold,
+    color: '#2E294E',
+    flex: 1,
+    textAlign: 'right',
+  },
+  rowHighlight: {
+    color: '#F47B20',
+    fontSize: 15,
+  },
+  rowAccent: {
+    color: '#2E294E',
+  },
+  altProduct: {
+    fontSize: 13,
+    fontFamily: FONT_FAMILY.urbanistSemiBold,
+    color: '#555',
+    paddingVertical: 4,
+  },
+});
 
 const styles = StyleSheet.create({
   imageModalBg: {

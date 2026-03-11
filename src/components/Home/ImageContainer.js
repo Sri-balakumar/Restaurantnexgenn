@@ -1,44 +1,64 @@
 import React from 'react';
 import { View, Image, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
-import { COLORS, FONT_FAMILY } from '@constants/theme';
+import { FONT_FAMILY } from '@constants/theme';
 import Text from '@components/Text';
 
 const { width } = Dimensions.get('window');
 
-const ImageContainer = ({ source, onPress, backgroundColor, title }) => (
-  <View style={styles.imageContainer}>
-    <Image source={source} style={styles.image} />
-    <TouchableOpacity style={[styles.buttonContainer, { backgroundColor }]} onPress={onPress}>
+const ImageContainer = ({ source, onPress, title }) => (
+  <TouchableOpacity onPress={onPress} style={styles.imageContainer} activeOpacity={0.75}>
+    <View style={styles.imageWrapper}>
+      <Image source={source} style={styles.image} />
+    </View>
+    <View style={styles.textContainer}>
       <Text style={styles.buttonText}>{title}</Text>
-    </TouchableOpacity>
-  </View>
+    </View>
+  </TouchableOpacity>
 );
 
 const styles = StyleSheet.create({
   imageContainer: {
-    height: 100,
     width: width * 0.3,
+    alignItems: 'center',
+    borderRadius: 14,
+    backgroundColor: '#fff',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    minHeight: 140,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  imageWrapper: {
+    width: 78,
+    height: 78,
+    borderRadius: 39,
+    backgroundColor: '#f0f4ff',
     justifyContent: 'center',
     alignItems: 'center',
-    borderColor: 'black',
-    borderWidth: 0.5,
-    borderRadius: 10
+    marginTop: 4,
+    overflow: 'hidden',
   },
   image: {
-    width: width * 0.25,
-    height: width * 0.11,
+    width: 68,
+    height: 68,
     resizeMode: 'contain',
+    borderRadius: 34,
   },
-  buttonContainer: {
-    width: '85%',
-    paddingVertical: 5,
-    borderRadius: 5,
+  textContainer: {
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 5,
+    paddingTop: 8,
+    paddingHorizontal: 4,
   },
   buttonText: {
-    color: COLORS.white,
-    fontFamily: FONT_FAMILY.urbanistBold
+    fontSize: 12,
+    textAlign: 'center',
+    color: '#2E294E',
+    fontFamily: FONT_FAMILY.urbanistBold,
+    lineHeight: 16,
   },
 });
 

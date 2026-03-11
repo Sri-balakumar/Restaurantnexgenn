@@ -8,10 +8,10 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
   ActivityIndicator,
-  Platform,
   Alert,
+  TextInput as TextInputNative,
 } from 'react-native';
-import Constants from 'expo-constants';
+import * as Device from 'expo-device';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import Text from '@components/Text';
@@ -22,62 +22,19 @@ import { FONT_FAMILY } from '@constants/theme';
 import * as deviceApi from '@api/services/deviceApi';
 import { generateUUIDv4 } from '@utils/uuid';
 
-// Auto-detect device name from expo-constants, fall back to OS info
-function getDeviceName() {
-  try {
-    const name = Constants.deviceName;
-    if (name && name.trim()) return name.trim();
-  } catch (_) {}
-  return `${Platform.OS === 'ios' ? 'iOS' : 'Android'} Device`;
-}
+const getDeviceModel = () =>
+  Device.deviceName || Device.modelName || 'Unknown Device';
 
-const PURPLE = '#875a7b';
-const LIGHT_PURPLE = '#f5eef8';
-const BORDER = '#e0d0e8';
+const PURPLE = '#2E294E';
+const LIGHT_PURPLE = '#eeecf5';
+const BORDER = '#d0ceea';
 
-// ─── Small reusable components ───────────────────────────────────────────────
-
-const Label = ({ text, required }) => (
-  <Text style={styles.label}>
-    {text}
-    {required && <Text style={styles.labelRequired}> *</Text>}
-  </Text>
-);
-
-const Field = ({ label, required, error, children }) => (
+const Field = ({ error, children }) => (
   <View style={styles.fieldGroup}>
-    {label ? <Label text={label} required={required} /> : null}
     {children}
     {error ? <Text style={styles.errorText}>{error}</Text> : null}
   </View>
 );
-
-const StyledInput = ({ value, onChangeText, placeholder, onFocus, keyboardType, autoCapitalize, hasError }) => (
-  <View style={[styles.input, hasError && styles.inputError]}>
-    <Text
-      style={styles.inputText}
-      numberOfLines={1}
-    >
-      {/* We render via TextInput natively below */}
-    </Text>
-    {/* Use RN TextInput directly for full control */}
-    <TextInputNative
-      value={value}
-      onChangeText={onChangeText}
-      placeholder={placeholder}
-      placeholderTextColor="#bbb"
-      onFocus={onFocus}
-      keyboardType={keyboardType || 'default'}
-      autoCapitalize={autoCapitalize || 'none'}
-      autoCorrect={false}
-      style={styles.nativeInput}
-    />
-  </View>
-);
-
-// ─── Main screen ─────────────────────────────────────────────────────────────
-
-import { TextInput as TextInputNative } from 'react-native';
 
 const DeviceSetupScreen = () => {
   const navigation = useNavigation();
@@ -85,30 +42,33 @@ const DeviceSetupScreen = () => {
   const [serverUrl, setServerUrl] = useState('');
   const [databases, setDatabases] = useState([]);
   const [selectedDb, setSelectedDb] = useState('');
-  const [manualDb, setManualDb] = useState('');        // fallback: typed DB name
-  const [useManualDb, setUseManualDb] = useState(false); // toggle manual input
-  const deviceName = getDeviceName();                  // auto-detected, not editable
+  const [deviceUUID, setDeviceUUID] = useState('');
   const [loadingDbs, setLoadingDbs] = useState(false);
-  const [loadingRegister, setLoadingRegister] = useState(false);
+  const [loadingConfigure, setLoadingConfigure] = useState(false);
   const [dbDropdownOpen, setDbDropdownOpen] = useState(false);
   const [errors, setErrors] = useState({});
-  const [fetchAttempted, setFetchAttempted] = useState(false);
 
-  // Pre-fill from previously stored config
+  // Load or generate device UUID + pre-fill saved URL/DB
   useEffect(() => {
-    async function prefill() {
+    async function init() {
       try {
-        const pairs = await AsyncStorage.multiGet(['device_server_url', 'device_db_name']);
-        const savedUrl = pairs[0][1];
-        const savedDb = pairs[1][1];
-        if (savedUrl) setServerUrl(savedUrl);
-        if (savedDb) {
-          setManualDb(savedDb);
-          setUseManualDb(true);
+        const pairs = await AsyncStorage.multiGet([
+          'device_uuid',
+          'device_server_url',
+          'device_db_name',
+        ]);
+        let uuid = pairs[0][1];
+        if (!uuid) {
+          uuid = generateUUIDv4();
+          await AsyncStorage.setItem('device_uuid', uuid);
         }
+        setDeviceUUID(uuid);
+
+        const savedUrl = pairs[1][1];
+        if (savedUrl) setServerUrl(savedUrl);
       } catch (_) {}
     }
-    prefill();
+    init();
   }, []);
 
   const setError = (field, msg) => setErrors((p) => ({ ...p, [field]: msg }));
@@ -120,145 +80,132 @@ const DeviceSetupScreen = () => {
     return u.replace(/\/+$/, '');
   };
 
-  // Active DB value — either from dropdown or manual input
-  const activeDb = useManualDb ? manualDb.trim() : selectedDb;
-
-  // ── Fetch databases ─────────────────────────────────────────────────────
+  // ── Fetch databases ──────────────────────────────────────────────────────
   const handleFetchDatabases = async () => {
     Keyboard.dismiss();
-    if (!serverUrl.trim()) {
-      setError('serverUrl', 'Enter the Odoo server URL first');
-      return;
-    }
+    if (!serverUrl.trim()) return;
     clearError('serverUrl');
     setLoadingDbs(true);
     setDatabases([]);
     setSelectedDb('');
-    setFetchAttempted(true);
+    setDbDropdownOpen(false);
 
     try {
       const dbs = await deviceApi.fetchDatabases(normalizeUrl(serverUrl));
       if (!dbs || dbs.length === 0) {
-        showToastMessage('No databases found — enter the database name manually');
-        setUseManualDb(true);
+        setError('serverUrl', 'Could not fetch databases — check the URL and try again');
       } else {
         setDatabases(dbs);
-        setUseManualDb(false);
         setDbDropdownOpen(true);
       }
-    } catch (err) {
-      // 404 = module endpoint not accessible; fall back to manual entry
-      const is404 = err?.response?.status === 404;
-      if (is404) {
-        showToastMessage('Auto-fetch unavailable — enter database name manually');
-      } else {
-        showToastMessage(`Server error: ${err.message}`);
-      }
-      setUseManualDb(true);
+    } catch (_) {
+      setError('serverUrl', 'Cannot reach server — check the URL and try again');
     } finally {
       setLoadingDbs(false);
     }
   };
 
-  // ── Skip registration (module not installed) ────────────────────────────
-  const skipToLogin = async () => {
-    try {
-      await AsyncStorage.multiSet([
-        ['device_server_url', normalizeUrl(serverUrl)],
-        ['device_db_name', activeDb],
-        ['device_registered', 'skipped'],
-      ]);
-    } catch (_) {}
-    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-  };
-
-  const show404Alert = () => {
-    Alert.alert(
-      '⚠️  Module Not Installed',
-      'The "Device Login Config" module (device_login_config) is not installed on your Odoo server.\n\n' +
-      'To fix this:\n' +
-      '1. Open Odoo → Apps\n' +
-      '2. Search "device_login_config"\n' +
-      '3. Install it and try again\n\n' +
-      'Or tap "Continue Anyway" to skip device registration and go directly to login.',
-      [
-        {
-          text: 'Continue Anyway',
-          onPress: skipToLogin,
-        },
-        {
-          text: 'OK — I will install it',
-          style: 'cancel',
-        },
-      ]
-    );
-  };
-
-  // ── Register device ─────────────────────────────────────────────────────
-  const handleRegister = async () => {
+  // ── Configure Device (lookup → activate) ────────────────────────────────
+  const handleConfigure = async () => {
     Keyboard.dismiss();
     let valid = true;
-
     if (!serverUrl.trim()) {
       setError('serverUrl', 'Server URL is required');
       valid = false;
     }
-    if (!activeDb) {
-      setError('db', useManualDb ? 'Enter the database name' : 'Select a database');
+    if (!selectedDb) {
+      setError('db', 'Select a database');
       valid = false;
     }
     if (!valid) return;
 
-    setLoadingRegister(true);
+    const base = normalizeUrl(serverUrl);
+    setLoadingConfigure(true);
     try {
-      let uuid = await AsyncStorage.getItem('device_uuid');
-      if (!uuid) {
-        uuid = generateUUIDv4();
-        await AsyncStorage.setItem('device_uuid', uuid);
+      // Step 1 — lookup
+      const lookup = await deviceApi.lookupDevice(base, deviceUUID, selectedDb);
+
+      if (lookup.status === 'not_found') {
+        Alert.alert(
+          'Device Not Registered',
+          'This device is not registered.\n\nDevice Model: ' +
+          getDeviceModel() +
+          '\nDevice ID: ' +
+          deviceUUID +
+          '\n\nAsk your admin to open Device Registry → New Device — a QR code will appear. Then tap Scan QR below.',
+          [
+            { text: 'OK' },
+            {
+              text: 'Scan QR',
+              onPress: () => navigation.navigate('DeviceQRScanner', {
+                deviceUUID,
+                deviceModel: getDeviceModel(),
+                serverUrl: base,
+              }),
+            },
+          ]
+        );
+        return;
       }
 
-      const result = await deviceApi.initDevice({
-        baseUrl: normalizeUrl(serverUrl),
-        databaseName: activeDb,
-        deviceId: uuid,
-        deviceName: deviceName,
-      });
+      if (lookup.status === 'blocked' || lookup.device_status === 'blocked') {
+        Alert.alert(
+          'Device Blocked',
+          'This device has been blocked by the administrator.\nContact your Odoo admin to unblock it.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
 
-      if (result && (result.registered === true || result.just_registered === true)) {
+      if (lookup.status === 'error') {
+        showToastMessage(lookup.message || 'Server error during lookup. Check URL and database.');
+        return;
+      }
+
+      // status === 'found' — Step 2: activate
+      const activate = await deviceApi.activateDevice(base, deviceUUID, selectedDb);
+
+      if (activate.status === 'activated' || activate.status === 'already_active') {
         await AsyncStorage.multiSet([
-          ['device_server_url', normalizeUrl(serverUrl)],
-          ['device_db_name', activeDb],
+          ['device_server_url', base],
+          ['device_db_name', selectedDb],
           ['device_registered', 'true'],
         ]);
         navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-      } else {
-        const msg = result?.error || 'Registration failed — check your server URL and database name';
-        showToastMessage(msg);
+        return;
       }
+
+      if (activate.status === 'blocked') {
+        Alert.alert('Device Blocked', 'This device has been blocked by the administrator.', [{ text: 'OK' }]);
+        return;
+      }
+
+      // not_found or error from activate
+      showToastMessage(activate.message || 'Activation failed. Try again.');
+
     } catch (err) {
-      const status = err?.response?.status;
-      if (status === 404) {
-        show404Alert();
-      } else if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
         showToastMessage('Connection timed out. Check your network and server URL.');
       } else if (err.message?.includes('Network Error') || err.message?.includes('ECONNREFUSED')) {
         showToastMessage('Cannot reach server. Check the URL and ensure Odoo is running.');
+      } else if (err.message?.includes('404')) {
+        showToastMessage('Device module not found on server. Please install the device_login_config module in Odoo.');
       } else {
         showToastMessage(`Error: ${err.message}`);
       }
     } finally {
-      setLoadingRegister(false);
+      setLoadingConfigure(false);
     }
   };
 
-  const isLoading = loadingDbs || loadingRegister;
+  const isLoading = loadingDbs || loadingConfigure;
 
   return (
     <TouchableWithoutFeedback
       onPress={() => { Keyboard.dismiss(); setDbDropdownOpen(false); }}
     >
       <SafeAreaView backgroundColor={PURPLE}>
-        <OverlayLoader visible={loadingRegister} />
+        <OverlayLoader visible={loadingConfigure} />
 
         <ScrollView
           keyboardShouldPersistTaps="handled"
@@ -272,7 +219,7 @@ const DeviceSetupScreen = () => {
             </View>
             <Text style={styles.headerTitle}>Device Setup</Text>
             <Text style={styles.headerSubtitle}>
-              Register this device with your Odoo server to continue
+              Configure this device to connect to your server
             </Text>
           </View>
 
@@ -282,35 +229,36 @@ const DeviceSetupScreen = () => {
             {/* Step 1 — Server URL */}
             <View style={styles.stepRow}>
               <View style={styles.stepBadge}><Text style={styles.stepNum}>1</Text></View>
-              <Text style={styles.stepTitle}>Odoo Server URL</Text>
+              <Text style={styles.stepTitle}>Server URL</Text>
             </View>
 
             <Field error={errors.serverUrl}>
-              <TextInputNative
-                value={serverUrl}
-                onChangeText={(t) => { setServerUrl(t); clearError('serverUrl'); }}
-                onFocus={() => clearError('serverUrl')}
-                placeholder="http://192.168.1.10:8069"
-                placeholderTextColor="#bbb"
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="url"
-                style={[styles.nativeInput, errors.serverUrl && styles.inputError]}
-              />
+              <View style={styles.urlInputRow}>
+                <TextInputNative
+                  value={serverUrl}
+                  onChangeText={(t) => {
+                    setServerUrl(t);
+                    clearError('serverUrl');
+                    setDatabases([]);
+                    setSelectedDb('');
+                    setDbDropdownOpen(false);
+                  }}
+                  onFocus={() => clearError('serverUrl')}
+                  onBlur={() => { if (serverUrl.trim()) handleFetchDatabases(); }}
+                  onSubmitEditing={() => { if (serverUrl.trim()) handleFetchDatabases(); }}
+                  placeholder="Enter the URL (http:// or https://)"
+                  placeholderTextColor="#bbb"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                  returnKeyType="done"
+                  style={[styles.nativeInput, styles.urlInput, errors.serverUrl && styles.inputError]}
+                />
+                {loadingDbs && (
+                  <ActivityIndicator size="small" color={PURPLE} style={styles.urlSpinner} />
+                )}
+              </View>
             </Field>
-
-            <TouchableOpacity
-              style={[styles.fetchBtn, loadingDbs && styles.btnDisabled]}
-              onPress={handleFetchDatabases}
-              disabled={isLoading}
-              activeOpacity={0.8}
-            >
-              {loadingDbs ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.fetchBtnText}>Fetch Databases</Text>
-              )}
-            </TouchableOpacity>
 
             <View style={styles.divider} />
 
@@ -318,108 +266,71 @@ const DeviceSetupScreen = () => {
             <View style={styles.stepRow}>
               <View style={styles.stepBadge}><Text style={styles.stepNum}>2</Text></View>
               <Text style={styles.stepTitle}>Database</Text>
-              {fetchAttempted && (
-                <TouchableOpacity
-                  onPress={() => { setUseManualDb((v) => !v); clearError('db'); }}
-                  style={styles.toggleBtn}
-                >
-                  <Text style={styles.toggleBtnText}>
-                    {useManualDb ? '▼ Pick from list' : '✏ Enter manually'}
-                  </Text>
-                </TouchableOpacity>
-              )}
             </View>
 
-            {/* Dropdown selector */}
-            {!useManualDb && (
-              <Field error={errors.db}>
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={() => {
-                    if (databases.length > 0) setDbDropdownOpen((o) => !o);
-                    else { showToastMessage('Tap "Fetch Databases" first'); }
-                  }}
-                  style={[styles.nativeInput, styles.dbSelector, errors.db && styles.inputError]}
-                >
-                  <Text style={selectedDb ? styles.dbSelectedText : styles.dbPlaceholderText}>
-                    {selectedDb || (databases.length === 0 ? 'Tap "Fetch Databases" first' : 'Select a database')}
-                  </Text>
-                  <Text style={styles.chevron}>{dbDropdownOpen ? '▲' : '▼'}</Text>
-                </TouchableOpacity>
-
-                {dbDropdownOpen && databases.length > 0 && (
-                  <View style={styles.dropdown}>
-                    <ScrollView
-                      nestedScrollEnabled={true}
-                      keyboardShouldPersistTaps="handled"
-                      showsVerticalScrollIndicator={true}
-                      style={styles.dropdownScroll}
-                    >
-                      {databases.map((item) => (
-                        <TouchableOpacity
-                          key={item}
-                          style={[styles.dropdownItem, item === selectedDb && styles.dropdownItemActive]}
-                          onPress={() => {
-                            setSelectedDb(item);
-                            clearError('db');
-                            setDbDropdownOpen(false);
-                          }}
-                        >
-                          <Text style={[styles.dropdownItemText, item === selectedDb && styles.dropdownItemTextActive]}>
-                            {item}
-                          </Text>
-                          {item === selectedDb && <Text style={styles.checkmark}>✓</Text>}
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-              </Field>
-            )}
-
-            {/* Manual DB input */}
-            {useManualDb && (
-              <Field error={errors.db}>
-                <TextInputNative
-                  value={manualDb}
-                  onChangeText={(t) => { setManualDb(t); clearError('db'); }}
-                  onFocus={() => clearError('db')}
-                  placeholder="e.g. nexgenn-restaurant"
-                  placeholderTextColor="#bbb"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  style={[styles.nativeInput, errors.db && styles.inputError]}
-                />
-              </Field>
-            )}
-
-            {!fetchAttempted && (
+            <Field error={errors.db}>
               <TouchableOpacity
-                onPress={() => { setUseManualDb(true); setFetchAttempted(true); clearError('db'); }}
-                style={styles.manualLink}
+                activeOpacity={0.8}
+                onPress={() => {
+                  if (databases.length > 0) setDbDropdownOpen((o) => !o);
+                }}
+                style={[styles.nativeInput, styles.dbSelector, errors.db && styles.inputError]}
               >
-                <Text style={styles.manualLinkText}>Enter database name manually</Text>
+                <Text style={selectedDb ? styles.dbSelectedText : styles.dbPlaceholderText}>
+                  {selectedDb || (databases.length === 0 ? 'Enter URL above to load databases' : 'Select a database')}
+                </Text>
+                {databases.length > 0 && (
+                  <Text style={styles.chevron}>{dbDropdownOpen ? '▲' : '▼'}</Text>
+                )}
               </TouchableOpacity>
-            )}
+
+              {dbDropdownOpen && databases.length > 0 && (
+                <View style={styles.dropdown}>
+                  <ScrollView
+                    nestedScrollEnabled
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator
+                    style={styles.dropdownScroll}
+                  >
+                    {databases.map((item) => (
+                      <TouchableOpacity
+                        key={item}
+                        style={[styles.dropdownItem, item === selectedDb && styles.dropdownItemActive]}
+                        onPress={() => {
+                          setSelectedDb(item);
+                          clearError('db');
+                          setDbDropdownOpen(false);
+                        }}
+                      >
+                        <Text style={[styles.dropdownItemText, item === selectedDb && styles.dropdownItemTextActive]}>
+                          {item}
+                        </Text>
+                        {item === selectedDb && <Text style={styles.checkmark}>✓</Text>}
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </Field>
 
             <View style={styles.divider} />
 
-            {/* Register button */}
+            {/* Configure Device button */}
             <TouchableOpacity
               style={[styles.registerBtn, isLoading && styles.btnDisabled]}
-              onPress={handleRegister}
+              onPress={handleConfigure}
               disabled={isLoading}
               activeOpacity={0.8}
             >
-              {loadingRegister ? (
+              {loadingConfigure ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.registerBtnText}>Register Device</Text>
+                <Text style={styles.registerBtnText}>Configure Device</Text>
               )}
             </TouchableOpacity>
 
             <Text style={styles.hint}>
-              This device will be saved in the Odoo Device Registry.{'\n'}
+              Your Device ID must be pre-registered by your admin.{'\n'}
               You only need to do this once per device.
             </Text>
           </View>
@@ -434,8 +345,6 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingBottom: 40,
   },
-
-  // Header
   header: {
     alignItems: 'center',
     paddingTop: 20,
@@ -467,20 +376,27 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 19,
   },
-
-  // Card
   card: {
     backgroundColor: '#fff',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     flex: 1,
     paddingHorizontal: 22,
-    paddingTop: 28,
+    paddingTop: 24,
     paddingBottom: 20,
     minHeight: 500,
   },
-
-  // Step rows
+  urlInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  urlInput: {
+    flex: 1,
+  },
+  urlSpinner: {
+    position: 'absolute',
+    right: 14,
+  },
   stepRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -506,24 +422,8 @@ const styles = StyleSheet.create({
     color: '#2e2a4f',
     flex: 1,
   },
-  optional: {
-    fontSize: 12,
-    color: '#aaa',
-    fontFamily: FONT_FAMILY.urbanistBold,
-  },
-
-  // Fields
   fieldGroup: {
     marginBottom: 10,
-  },
-  label: {
-    fontSize: 12,
-    color: '#888',
-    marginBottom: 5,
-    marginLeft: 2,
-  },
-  labelRequired: {
-    color: '#e74c3c',
   },
   nativeInput: {
     borderWidth: 1,
@@ -546,8 +446,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginLeft: 2,
   },
-
-  // DB selector
   dbSelector: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -569,8 +467,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginLeft: 6,
   },
-
-  // Dropdown
   dropdown: {
     borderWidth: 1,
     borderColor: BORDER,
@@ -612,30 +508,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: FONT_FAMILY.urbanistBold,
   },
-
-  // Buttons
-  fetchBtn: {
-    backgroundColor: PURPLE,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginBottom: 6,
-    opacity: 1,
-  },
-  fetchBtnText: {
-    color: '#fff',
-    fontSize: 14,
-    fontFamily: FONT_FAMILY.urbanistBold,
-  },
   registerBtn: {
-    backgroundColor: PURPLE,
+    backgroundColor: '#F47B20',
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 4,
     marginBottom: 14,
     elevation: 2,
-    shadowColor: PURPLE,
+    shadowColor: '#F47B20',
     shadowOpacity: 0.35,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
@@ -649,39 +530,11 @@ const styles = StyleSheet.create({
   btnDisabled: {
     opacity: 0.6,
   },
-
-  // Toggle / manual link
-  toggleBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: LIGHT_PURPLE,
-    borderRadius: 20,
-  },
-  toggleBtnText: {
-    color: PURPLE,
-    fontSize: 11,
-    fontFamily: FONT_FAMILY.urbanistBold,
-  },
-  manualLink: {
-    alignSelf: 'center',
-    marginTop: 2,
-    marginBottom: 6,
-    padding: 4,
-  },
-  manualLinkText: {
-    color: PURPLE,
-    fontSize: 13,
-    textDecorationLine: 'underline',
-  },
-
-  // Divider
   divider: {
     height: 1,
     backgroundColor: '#f0e8f4',
-    marginVertical: 18,
+    marginVertical: 16,
   },
-
-  // Hint
   hint: {
     fontSize: 12,
     color: '#aaa',

@@ -22,7 +22,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 8,
     backgroundColor: COLORS.primaryThemeColor || '#2e294e',
-    marginBottom: 6,
+    marginTop: 10,
+    marginBottom: 8,
   },
   text: {
     fontSize: 18,

@@ -21,10 +21,12 @@ const ProductsList = ({ item, onPress, showQuickAdd, onQuickAdd }) => {
                     <Text style={styles.plusText}>+</Text>
                 </Pressable>
             )}
-            <Image
-                source={item?.image_url ? { uri: item.image_url } : errorImage}
-                style={styles.image}
-            />
+            <View style={styles.imageWrapper}>
+                <Image
+                    source={item?.image_url ? { uri: item.image_url } : errorImage}
+                    style={styles.image}
+                />
+            </View>
                         <View style={styles.textContainer}>
                                 <Text style={styles.name}>{truncatedName?.trim()}</Text>
                                 <Text style={styles.price}>{priceValue?.toString ? Number(priceValue).toFixed(2) : priceValue} {currency || ''}</Text>
@@ -51,50 +53,61 @@ const styles = StyleSheet.create({
         flex: 1,
         position: 'relative',
         alignItems: 'center',
-        margin: 6,
-        borderWidth: 0.5,
-        borderRadius: 10,
-        paddingVertical: 10,
-        borderColor: 'grey',
+        margin: 5,
+        borderRadius: 14,
+        paddingVertical: 12,
+        paddingHorizontal: 6,
         backgroundColor: 'white',
-        width: 150,  // Set a fixed width
-        height: 180, // Adjusted height to make space for text
+        width: 150,
+        minHeight: 190,
+        elevation: 3,
+        shadowColor: '#000',
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
     },
-    image: {
-        width: 85,  // Adjusted width as necessary
-        height: 100, // Adjusted height as necessary
-        resizeMode: 'contain',
-        borderRadius: 8,
-        alignSelf: 'center',  // Center image horizontally
-    },
-    textContainer: {
-        flex: 1,
+    imageWrapper: {
+        width: 90,
+        height: 90,
+        borderRadius: 10,
+        backgroundColor: '#f5f5f5',
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: 5,
-        // paddingVertical: 5,
+        overflow: 'hidden',
+    },
+    image: {
+        width: 80,
+        height: 80,
+        resizeMode: 'contain',
+    },
+    textContainer: {
+        width: '100%',
+        alignItems: 'center',
+        paddingHorizontal: 4,
+        marginTop: 8,
     },
     name: {
         fontSize: 12,
         textAlign: 'center',
         textTransform: 'capitalize',
-        color: '#2E2B2B',
+        color: '#2E294E',
         fontFamily: FONT_FAMILY.urbanistBold,
+        lineHeight: 16,
     },
     price: {
-        fontSize: 12,
+        fontSize: 13,
         textAlign: 'center',
-        color: COLORS.green,
+        color: '#F47B20',
         marginTop: 4,
-        fontFamily: FONT_FAMILY.urbanistSemiBold,
+        fontFamily: FONT_FAMILY.urbanistBold,
     },
     plusBtn: {
         position: 'absolute',
         top: 6,
         right: 6,
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 28,
+        height: 28,
+        borderRadius: 14,
         backgroundColor: COLORS.orange,
         alignItems: 'center',
         justifyContent: 'center',
@@ -102,20 +115,21 @@ const styles = StyleSheet.create({
     },
     plusText: {
         color: '#fff',
-        fontSize: 22,
+        fontSize: 18,
         fontWeight: '800',
+        lineHeight: 22,
     },
     category: {
-        fontSize: 11,
+        fontSize: 10,
         textAlign: 'center',
         color: COLORS.primaryThemeColor,
         marginTop: 2,
         fontFamily: FONT_FAMILY.urbanistSemiBold,
     },
     code: {
-        fontSize: 11,
+        fontSize: 10,
         textAlign: 'center',
-        color: COLORS.orange,
+        color: '#aaa',
         marginTop: 2,
         fontFamily: FONT_FAMILY.urbanistSemiBold,
     },

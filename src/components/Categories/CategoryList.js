@@ -22,15 +22,16 @@ const CategoryList = ({ item, onPress }) => {
     const imageUri = item?.image || item?.image_url || null;
 
     return (
-        <TouchableOpacity onPress={onPress} style={styles.container}>
-            {imageLoading && <ActivityIndicator size="small" color={'black'} style={{ position: 'absolute', top: 30 }} />}
-            <Image
-                source={imageUri ? { uri: imageUri } : errorImage}
-                style={styles.image}
-                onLoad={() => setImageLoading(false)}
-                onError={() => setImageLoading(false)}
-            />
-            <View style={{ height: 8 }} />
+        <TouchableOpacity onPress={onPress} style={styles.container} activeOpacity={0.75}>
+            <View style={styles.imageWrapper}>
+                {imageLoading && <ActivityIndicator size="small" color="#2E294E" style={{ position: 'absolute' }} />}
+                <Image
+                    source={imageUri ? { uri: imageUri } : errorImage}
+                    style={styles.image}
+                    onLoad={() => setImageLoading(false)}
+                    onError={() => setImageLoading(false)}
+                />
+            </View>
             <View style={styles.textContainer}>
                 <Text numberOfLines={2} style={styles.name}>{truncatedName}</Text>
             </View>
@@ -44,33 +45,47 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         alignItems: 'center',
-        margin: 6,
-        borderWidth: 0.5,
-        borderRadius: 10,
+        margin: 5,
+        borderRadius: 14,
         marginTop: 5,
-        borderColor: 'grey',
-        backgroundColor: "white",
-        paddingVertical: 10,
+        backgroundColor: '#fff',
+        paddingVertical: 12,
+        paddingHorizontal: 4,
         minHeight: 140,
+        elevation: 3,
+        shadowColor: '#000',
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
     },
-    image: {
-        width: 84,
-        height: 84,
-        resizeMode: 'contain',
-        borderRadius: 8,
-        marginTop: 6,
-    },
-    textContainer: {
-        // place text below image
+    imageWrapper: {
+        width: 78,
+        height: 78,
+        borderRadius: 39,
+        backgroundColor: '#f0f4ff',
         justifyContent: 'center',
         alignItems: 'center',
-        paddingTop: 10,
+        marginTop: 4,
+        overflow: 'hidden',
+    },
+    image: {
+        width: 68,
+        height: 68,
+        resizeMode: 'cover',
+        borderRadius: 34,
+    },
+    textContainer: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingTop: 8,
+        paddingHorizontal: 4,
     },
     name: {
-        fontSize: 14,
+        fontSize: 12,
         textAlign: 'center',
         textTransform: 'capitalize',
-        color: '#1316c5ff',
-        fontFamily: FONT_FAMILY.urbanistBold
+        color: '#2E294E',
+        fontFamily: FONT_FAMILY.urbanistBold,
+        lineHeight: 16,
     },
 });

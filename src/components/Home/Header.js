@@ -14,11 +14,11 @@ const Header = () => {
   useEffect(() => {
     async function loadLogo() {
       try {
-        const pairs = await AsyncStorage.multiGet(['device_server_url', 'odoo_session_id', 'userData']);
+        const pairs = await AsyncStorage.multiGet(['device_server_url', 'odoo_session_id', 'userData', 'pos_config_id']);
         const serverUrl = pairs[0][1];
         let session = pairs[1][1];
+        const posConfigId = pairs[3][1];
 
-        // Fallback: read session_id from stored userData (covers auto-login path)
         if (!session && pairs[2][1]) {
           try {
             const ud = JSON.parse(pairs[2][1]);
@@ -26,13 +26,7 @@ const Header = () => {
           } catch (_) {}
         }
 
-        console.log('[Header] serverUrl:', serverUrl);
-        console.log('[Header] session:', session ? session.substring(0, 20) + '...' : null);
-
-        if (!serverUrl || !session) {
-          console.log('[Header] Missing serverUrl or session, using fallback');
-          return;
-        }
+        if (!serverUrl || !session) return;
 
         const base = serverUrl.replace(/\/+$/, '');
         const headers = {
@@ -41,89 +35,78 @@ const Header = () => {
           'X-Openerp-Session-Id': session,
         };
 
-        // Step 1: get pos.config id and company logo
-        const cfgRes = await axios.post(
-          `${base}/web/dataset/call_kw`,
-          {
-            jsonrpc: '2.0',
-            method: 'call',
-            params: {
-              model: 'pos.config',
-              method: 'search_read',
-              args: [[]],
-              kwargs: { fields: ['id', 'logo'], limit: 1, context: {} },
-            },
-          },
-          { headers, timeout: 10000 }
-        );
-
-        console.log('[Header] pos.config result error:', cfgRes.data?.error);
-        const cfg = cfgRes.data?.result?.[0];
-        console.log('[Header] pos.config id:', cfg?.id, '| logo length:', typeof cfg?.logo === 'string' ? cfg.logo.length : cfg?.logo);
-
-        if (!cfg) {
-          console.log('[Header] No pos.config found');
-          return;
-        }
-
-        const configId = cfg.id;
-
-        // Step 2: fetch pos_logo via ir.attachment
-        let b64 = null;
-        try {
-          const attRes = await axios.post(
+        // Step 1: get pos.config id
+        let configId = posConfigId ? parseInt(posConfigId) : null;
+        if (!configId) {
+          const cfgRes = await axios.post(
             `${base}/web/dataset/call_kw`,
             {
-              jsonrpc: '2.0',
-              method: 'call',
+              jsonrpc: '2.0', method: 'call',
               params: {
-                model: 'ir.attachment',
-                method: 'search_read',
-                args: [[
-                  ['res_model', '=', 'pos.config'],
-                  ['res_field', '=', 'pos_logo'],
-                  ['res_id', '=', configId],
-                ]],
-                kwargs: { fields: ['datas', 'mimetype', 'name'], limit: 1, context: {} },
+                model: 'pos.config', method: 'search_read',
+                args: [[]], kwargs: { fields: ['id'], limit: 1, context: {} },
               },
             },
             { headers, timeout: 10000 }
           );
-          console.log('[Header] ir.attachment error:', attRes.data?.error);
-          const att = attRes.data?.result?.[0];
-          console.log('[Header] ir.attachment name:', att?.name, '| datas length:', typeof att?.datas === 'string' ? att.datas.length : att?.datas);
+          configId = cfgRes.data?.result?.[0]?.id;
+        }
 
-          if (att && typeof att.datas === 'string' && att.datas.length > 20) {
-            const mime = att.mimetype || 'image/png';
-            b64 = `data:${mime};base64,${att.datas}`;
-            console.log('[Header] Using pos_logo from ir.attachment');
+        if (!configId) return;
+
+        // Step 2: fetch binary via /web/image — most reliable way to get Odoo binary fields
+        const tryImageUrl = async (url) => {
+          const res = await axios.get(url, {
+            headers: { 'Cookie': `session_id=${session}`, 'X-Openerp-Session-Id': session },
+            responseType: 'arraybuffer',
+            timeout: 10000,
+          });
+          if (res.status === 200 && res.data?.byteLength > 100) {
+            const bytes = new Uint8Array(res.data);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+            const b64 = btoa(binary);
+            const mime = res.headers['content-type'] || 'image/png';
+            return `data:${mime};base64,${b64}`;
           }
-        } catch (attErr) {
-          console.log('[Header] ir.attachment fetch error:', attErr.message);
+          return null;
+        };
+
+        // Try pos.config logo first, then company logo
+        let logoData = null;
+        try {
+          logoData = await tryImageUrl(`${base}/web/image/pos.config/${configId}/logo`);
+        } catch (_) {}
+
+        if (!logoData) {
+          try {
+            logoData = await tryImageUrl(`${base}/web/binary/company_logo`);
+          } catch (_) {}
         }
 
-        // Step 3: fallback to company logo
-        if (!b64) {
-          const companyLogo = cfg.logo;
-          if (typeof companyLogo === 'string' && companyLogo.length > 20) {
-            b64 = companyLogo.startsWith('data:')
-              ? companyLogo
-              : `data:image/png;base64,${companyLogo}`;
-            console.log('[Header] Using company logo, length:', companyLogo.length);
-          } else {
-            console.log('[Header] Company logo not available:', companyLogo);
-          }
+        if (!logoData) {
+          // Last resort: search_read for company logo
+          try {
+            const compRes = await axios.post(
+              `${base}/web/dataset/call_kw`,
+              {
+                jsonrpc: '2.0', method: 'call',
+                params: {
+                  model: 'res.company', method: 'search_read',
+                  args: [[]], kwargs: { fields: ['logo'], limit: 1, context: {} },
+                },
+              },
+              { headers, timeout: 10000 }
+            );
+            const logo = compRes.data?.result?.[0]?.logo;
+            if (typeof logo === 'string' && logo.length > 20) {
+              logoData = logo.startsWith('data:') ? logo : `data:image/png;base64,${logo}`;
+            }
+          } catch (_) {}
         }
 
-        if (b64) {
-          setLogoUri(b64);
-          console.log('[Header] Logo set successfully');
-        } else {
-          console.log('[Header] No logo found, will use static fallback');
-        }
-      } catch (err) {
-        console.log('[Header] loadLogo error:', err.message);
-      }
+        if (logoData) setLogoUri(logoData);
+      } catch (_) {}
     }
     loadLogo();
   }, []);
@@ -137,10 +120,7 @@ const Header = () => {
           source={{ uri: logoUri }}
           style={styles.backgroundImage}
           resizeMode="contain"
-          onError={(e) => {
-            console.log('[Header] Image onError:', e.nativeEvent?.error);
-            setUseFallback(true);
-          }}
+          onError={() => setUseFallback(true)}
         />
       ) : (
         <Image

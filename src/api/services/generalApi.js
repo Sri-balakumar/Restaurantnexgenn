@@ -1,13 +1,51 @@
 // In-memory product cache: fetch all products once, filter instantly for each category
 let _allProductsCache = null;
 let _allProductsCacheTime = 0;
+let _allProductsCacheDb = null; // tracks which DB the cache belongs to
 const PRODUCT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-// Preload all products into cache (call this early, e.g. on app start or table click)
+// Helper: build headers from AsyncStorage session info
+const _buildOdooHeaders = async () => {
+  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  const { DEFAULT_ODOO_DB, DEFAULT_ODOO_BASE_URL } = require('../config/odooConfig');
+  const [deviceUrl, sessionId, deviceDb] = await Promise.all([
+    AsyncStorage.getItem('device_server_url'),
+    AsyncStorage.getItem('odoo_session_id'),
+    AsyncStorage.getItem('device_db_name'),
+  ]);
+  const baseUrl = (deviceUrl || DEFAULT_ODOO_BASE_URL || '').replace(/\/+$/, '');
+  const dbName = deviceDb || DEFAULT_ODOO_DB;
+  const headers = { 'Content-Type': 'application/json', 'X-Odoo-Database': dbName };
+  if (sessionId) {
+    headers['Cookie'] = `session_id=${sessionId}`;
+    headers['X-Openerp-Session-Id'] = sessionId;
+  }
+  return { baseUrl, dbName, headers };
+};
+
+// Helper: filter product list by pos category ID (checks both Many2one and Many2many fields)
+const _filterByPosCategory = (products, catId) => {
+  if (!catId) return products;
+  return products.filter(p => {
+    // pos_categ_ids (Many2many, Odoo 16+) — array of integer IDs
+    if (Array.isArray(p.pos_categ_ids) && p.pos_categ_ids.length > 0) {
+      return p.pos_categ_ids.includes(catId);
+    }
+    // pos_categ_id (Many2one) — comes as [id, name] or false/integer
+    if (Array.isArray(p.pos_categ_id) && p.pos_categ_id.length > 0) {
+      return p.pos_categ_id[0] === catId;
+    }
+    return p.pos_categ_id === catId;
+  });
+};
+
+// Preload all products into cache
 export const preloadAllProducts = async () => {
-  try {
+  const { baseUrl, dbName, headers } = await _buildOdooHeaders();
+  // Try with pos_categ_ids first (Odoo 16+), fallback to pos_categ_id only
+  const doFetch = async (fields) => {
     const response = await axios.post(
-      `${ODOO_BASE_URL}/web/dataset/call_kw`,
+      `${baseUrl}/web/dataset/call_kw`,
       {
         jsonrpc: '2.0',
         method: 'call',
@@ -15,60 +53,117 @@ export const preloadAllProducts = async () => {
           model: 'product.template',
           method: 'search_read',
           args: [[]],
-          kwargs: { fields: ['id', 'name', 'pos_categ_id', 'pos_categ_ids', 'list_price', 'default_code', 'image_128'] },
+          kwargs: { fields, limit: 2000, order: 'name asc' },
         },
       },
-      { headers: { 'Content-Type': 'application/json' } }
+      { headers }
     );
     if (response.data && response.data.error) {
-      throw new Error(response.data.error.message || 'Odoo error');
+      throw new Error(response.data.error.data?.message || response.data.error.message || 'Odoo error');
     }
-    const allProducts = response.data.result || [];
-    const baseUrl = (ODOO_BASE_URL || '').replace(/\/$/, '');
-    _allProductsCache = allProducts.map(p => {
-      const hasBase64 = p.image_128 && typeof p.image_128 === 'string' && p.image_128.length > 0;
-      const imageUrl = hasBase64
-        ? `data:image/png;base64,${p.image_128}`
-        : `${baseUrl}/web/image?model=product.template&id=${p.id}&field=image_128`;
-      return { ...p, product_name: p.name || '', image_url: imageUrl };
-    });
-    _allProductsCacheTime = Date.now();
-    return _allProductsCache;
-  } catch (error) {
-    throw error;
+    return response.data.result || [];
+  };
+
+  let allProducts;
+  try {
+    // Odoo 16+: only pos_categ_ids (Many2many) exists
+    allProducts = await doFetch(['id', 'name', 'pos_categ_ids', 'list_price', 'default_code', 'image_128']);
+  } catch (e1) {
+    try {
+      // Odoo 13-15: only pos_categ_id (Many2one) exists
+      allProducts = await doFetch(['id', 'name', 'pos_categ_id', 'list_price', 'default_code', 'image_128']);
+    } catch (e2) {
+      // Neither field exists — get products without category info
+      allProducts = await doFetch(['id', 'name', 'list_price', 'default_code', 'image_128']);
+    }
   }
+
+  const _preloadTs = Date.now();
+  _allProductsCache = allProducts.map(p => {
+    const hasBase64 = p.image_128 && typeof p.image_128 === 'string' && p.image_128.length > 0;
+    const imageUrl = hasBase64
+      ? `data:image/png;base64,${p.image_128}`
+      : `${baseUrl}/web/image?model=product.template&id=${p.id}&field=image_128&_ts=${_preloadTs}`;
+    return { ...p, product_name: p.name || '', image_url: imageUrl };
+  });
+  _allProductsCacheTime = Date.now();
+  _allProductsCacheDb = `${baseUrl}::${dbName}`;
+  return _allProductsCache;
 };
 
-// Clear product cache (call when products change in Odoo)
+// Clear product cache
 export const clearProductCache = () => {
   _allProductsCache = null;
   _allProductsCacheTime = 0;
+  _allProductsCacheDb = null;
 };
 
-// Fetch products from product.template where pos_categ_id/pos_categ_ids equals the given category id
+// Fetch products for a given pos.category ID — uses server-side domain filtering for reliability
 export const fetchProductsByPosCategoryId = async (posCategoryId) => {
-  try {
-    if (!posCategoryId) throw new Error('posCategoryId is required');
-    // Use cache if available and fresh, otherwise fetch and cache
-    if (!_allProductsCache || (Date.now() - _allProductsCacheTime > PRODUCT_CACHE_TTL)) {
-      await preloadAllProducts();
+  if (!posCategoryId) return [];
+  const catId = Number(posCategoryId);
+  if (!catId) return [];
+
+  const { baseUrl, dbName, headers } = await _buildOdooHeaders();
+  const baseFields = ['id', 'name', 'list_price', 'default_code', 'image_128'];
+
+  const _ts = Date.now();
+  const toProduct = (p) => {
+    const hasBase64 = p.image_128 && typeof p.image_128 === 'string' && p.image_128.length > 0;
+    return {
+      ...p,
+      product_name: p.name || '',
+      image_url: hasBase64
+        ? `data:image/png;base64,${p.image_128}`
+        : `${baseUrl}/web/image?model=product.template&id=${p.id}&field=image_128&_ts=${_ts}`,
+    };
+  };
+
+  const doDirectFetch = async (domain, fields) => {
+    const response = await axios.post(
+      `${baseUrl}/web/dataset/call_kw`,
+      {
+        jsonrpc: '2.0', method: 'call',
+        params: {
+          model: 'product.template', method: 'search_read',
+          args: [domain],
+          kwargs: { fields, limit: 2000, order: 'name asc' },
+        },
+      },
+      { headers }
+    );
+    if (response.data && response.data.error) {
+      throw new Error(response.data.error.data?.message || response.data.error.message || 'Odoo error');
     }
-    const catId = Number(posCategoryId);
-    // Filter from cache — instant, no network call
-    const filtered = _allProductsCache.filter(p => {
-      // Check pos_categ_ids (Many2many - array of IDs) for Odoo 18/19
-      if (Array.isArray(p.pos_categ_ids) && p.pos_categ_ids.length > 0) {
-        return p.pos_categ_ids.includes(catId);
-      }
-      // Fallback: check pos_categ_id (Many2one) for older Odoo
-      if (Array.isArray(p.pos_categ_id)) {
-        return p.pos_categ_id[0] === catId;
-      }
-      return p.pos_categ_id === catId;
-    });
-    return filtered;
-  } catch (error) {
-    throw error;
+    return (response.data.result || []).map(toProduct);
+  };
+
+  // Tier 1: Odoo 16+ — server-side filter by pos_categ_ids (Many2many)
+  try {
+    return await doDirectFetch(
+      [['pos_categ_ids', 'in', [catId]]],
+      [...baseFields, 'pos_categ_ids']
+    );
+  } catch (_) {}
+
+  // Tier 2: Odoo 13-15 — server-side filter by pos_categ_id (Many2one)
+  try {
+    return await doDirectFetch(
+      [['pos_categ_id', '=', catId]],
+      [...baseFields, 'pos_categ_id']
+    );
+  } catch (_) {}
+
+  // Tier 3: Fallback — load all products and filter client-side
+  try {
+    const cacheKey = `${baseUrl}::${dbName}`;
+    const cacheStale = !_allProductsCache
+      || (Date.now() - _allProductsCacheTime > PRODUCT_CACHE_TTL)
+      || _allProductsCacheDb !== cacheKey;
+    if (cacheStale) await preloadAllProducts();
+    return _filterByPosCategory(_allProductsCache, catId);
+  } catch (_) {
+    return [];
   }
 };
 // Fetch all product categories from Odoo (product.category)
@@ -101,33 +196,52 @@ export const fetchProductCategoriesOdoo = async () => {
     throw error;
   }
 };
-// Fetch POS categories from Odoo (pos.category)
+// Fetch POS categories from Odoo (pos.category) — with field fallbacks for Odoo version compatibility
 export const fetchPosCategoriesOdoo = async () => {
-  try {
-    const { DEFAULT_ODOO_DB, DEFAULT_ODOO_BASE_URL } = require('../config/odooConfig');
-    const url = (DEFAULT_ODOO_BASE_URL || ODOO_BASE_URL || '').replace(/\/$/, '') + '/web/dataset/call_kw';
-    const response = await axios.post(
-      url,
-      {
-        jsonrpc: '2.0',
-        method: 'call',
-        params: {
-          model: 'pos.category',
-          method: 'search_read',
-          args: [[]],
-          kwargs: {
-            // Request image fields so we can return inline/base64 images when available
-            fields: ['id', 'name', 'parent_id', 'sequence', 'pos_config_ids', 'has_image', 'image_128', 'image_512'],
-            order: 'sequence, name',
-          },
-        },
+  const { DEFAULT_ODOO_DB, DEFAULT_ODOO_BASE_URL } = require('../config/odooConfig');
+  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  const [deviceUrl, sessionId, deviceDb] = await Promise.all([
+    AsyncStorage.getItem('device_server_url'),
+    AsyncStorage.getItem('odoo_session_id'),
+    AsyncStorage.getItem('device_db_name'),
+  ]);
+  const baseUrl = (deviceUrl || DEFAULT_ODOO_BASE_URL || '').replace(/\/+$/, '');
+  const dbName = deviceDb || DEFAULT_ODOO_DB;
+  const url = baseUrl + '/web/dataset/call_kw';
+  const headers = { 'Content-Type': 'application/json', 'X-Odoo-Database': dbName };
+  if (sessionId) {
+    headers['Cookie'] = `session_id=${sessionId}`;
+    headers['X-Openerp-Session-Id'] = sessionId;
+  }
+
+  const doFetch = async (fields) => {
+    const response = await axios.post(url, {
+      jsonrpc: '2.0', method: 'call',
+      params: {
+        model: 'pos.category', method: 'search_read',
+        args: [[]],
+        kwargs: { fields, order: 'sequence, name' },
       },
-      { headers: { 'Content-Type': 'application/json', 'X-Odoo-Database': DEFAULT_ODOO_DB } }
-    );
+    }, { headers });
     if (response.data && response.data.error) {
-      throw new Error(response.data.error.message || JSON.stringify(response.data.error) || 'Odoo error');
+      throw new Error(response.data.error.data?.message || response.data.error.message || 'Odoo error');
     }
     return response.data.result || [];
+  };
+
+  // Try with all fields (Odoo 16+)
+  try {
+    return await doFetch(['id', 'name', 'parent_id', 'sequence', 'pos_config_ids', 'has_image', 'image_128', 'image_512']);
+  } catch (_) {}
+
+  // Try without image_512 (Odoo 13-15)
+  try {
+    return await doFetch(['id', 'name', 'parent_id', 'sequence', 'pos_config_ids', 'image_128']);
+  } catch (_) {}
+
+  // Minimal fields — always safe
+  try {
+    return await doFetch(['id', 'name', 'parent_id', 'sequence']);
   } catch (error) {
     throw error;
   }
@@ -376,104 +490,116 @@ export const fetchProducts = async ({ offset, limit, categoryId, searchText }) =
 
 
 
-// 🔹 NEW: Fetch products directly from Odoo 19 via JSON-RPC
-export const fetchProductsOdoo = async ({ offset, limit, searchText, categoryId } = {}) => {
-  // Helper to actually fetch products
-  const doFetch = async () => {
-    // Short-circuit: categoryId === -1 means "no products"
-    if (Number(categoryId) === -1) return [];
-    // Base domain: active salable products
-    let domain = [["sale_ok", "=", true]];
-    if (categoryId) {
-      // Filter by `categ_id` on product.template
-      domain = ["&", ["sale_ok", "=", true], ["categ_id", "=", Number(categoryId)]];
-      if (searchText && searchText.trim() !== "") {
-        const term = searchText.trim();
-        domain = [
-          "&",
-          ["sale_ok", "=", true],
-          ["categ_id", "=", Number(categoryId)],
-          ["name", "ilike", term],
-        ];
+// 🔹 Fetch products from Odoo — uses cache for category lookups, direct API for search/all
+export const fetchProductsOdoo = async ({ offset, limit, searchText, categoryId, posCategoryId } = {}) => {
+  const catId = Number(posCategoryId) || Number(categoryId);
+
+  // When a category is requested, use the cached all-products approach for reliability
+  if (catId) {
+    try {
+      const { baseUrl: curUrl, dbName: curDb } = await _buildOdooHeaders();
+      const curKey = `${curUrl}::${curDb}`;
+      if (!_allProductsCache || (Date.now() - _allProductsCacheTime > PRODUCT_CACHE_TTL) || _allProductsCacheDb !== curKey) {
+        await preloadAllProducts();
       }
-    } else if (searchText && searchText.trim() !== "") {
-      const term = searchText.trim();
-      domain = [
-        "&",
-        ["sale_ok", "=", true],
-        ["name", "ilike", term],
-      ];
+      let filtered = _filterByPosCategory(_allProductsCache, catId);
+      if (searchText && searchText.trim()) {
+        const term = searchText.trim().toLowerCase();
+        filtered = filtered.filter(p => (p.product_name || p.name || '').toLowerCase().includes(term));
+      }
+      return filtered;
+    } catch (cacheErr) {
+      // cache fetch failed — fall through to direct fetch below
     }
-    const odooLimit = limit || 50;
+  }
+
+  // Direct API fetch (no category, or cache failed)
+  const { baseUrl, headers } = await _buildOdooHeaders();
+
+  const textDomain = (searchText && searchText.trim()) ? [["name", "ilike", searchText.trim()]] : [];
+  // Fetch more records when filtering by category client-side
+  const fetchLimit = catId ? 500 : (limit || 50);
+  const fetchOffset = catId ? 0 : (offset || 0);
+
+  const doDirectFetch = async (fields) => {
     const response = await axios.post(
-      `${ODOO_BASE_URL}/web/dataset/call_kw`,
+      `${baseUrl}/web/dataset/call_kw`,
       {
         jsonrpc: "2.0",
         method: "call",
         params: {
           model: "product.template",
           method: "search_read",
-          args: [],
+          args: [textDomain],
           kwargs: {
-            domain,
-            fields: [
-              "id",
-              "name",
-              "list_price",
-              "default_code",
-              "uom_id",
-              "image_128",
-            ],
-            limit: odooLimit,
+            fields,
+            limit: fetchLimit,
+            offset: fetchOffset,
             order: "name asc",
           },
         },
       },
-      {
-        headers: { "Content-Type": "application/json" },
-      }
+      { headers }
     );
-    if (response.data.error) {
-      // If session expired, propagate error for retry logic
-      throw response.data.error;
+    if (response.data && response.data.error) {
+      throw new Error(response.data.error.data?.message || response.data.error.message || 'Odoo error');
     }
-    const products = response.data.result || [];
-    return products.map((p) => {
-      const hasBase64 = p.image_128 && typeof p.image_128 === 'string' && p.image_128.length > 0;
-      const baseUrl = (ODOO_BASE_URL || '').replace(/\/$/, '');
-      const imageUrl = hasBase64
-        ? `data:image/png;base64,${p.image_128}`
-        : `${baseUrl}/web/image?model=product.template&id=${p.id}&field=image_128`;
-      return {
-        id: p.id,
-        product_name: p.name || "",
-        image_url: imageUrl,
-        price: p.list_price || 0,
-        code: p.default_code || "",
-        uom: p.uom_id
-          ? { uom_id: p.uom_id[0], uom_name: p.uom_id[1] }
-          : null,
-      };
-    });
+    return response.data.result || [];
   };
 
+  let products;
+  try {
+    // Odoo 16+: pos_categ_ids only
+    products = await doDirectFetch(["id", "name", "list_price", "default_code", "uom_id", "image_128", "pos_categ_ids"]);
+  } catch (e1) {
+    try {
+      // Odoo 13-15: pos_categ_id only
+      products = await doDirectFetch(["id", "name", "list_price", "default_code", "uom_id", "image_128", "pos_categ_id"]);
+    } catch (e2) {
+      // Neither field — get products without category info
+      products = await doDirectFetch(["id", "name", "list_price", "default_code", "uom_id", "image_128"]);
+    }
+  }
+
+  // Apply client-side category filter if needed (cache was unavailable)
+  if (catId) {
+    products = _filterByPosCategory(products, catId);
+  }
+
+  const _fetchTs = Date.now();
+  return products.map((p) => {
+    const hasBase64 = p.image_128 && typeof p.image_128 === 'string' && p.image_128.length > 0;
+    const imageUrl = hasBase64
+      ? `data:image/png;base64,${p.image_128}`
+      : `${baseUrl}/web/image?model=product.template&id=${p.id}&field=image_128&_ts=${_fetchTs}`;
+    return {
+      id: p.id,
+      product_name: p.name || "",
+      image_url: imageUrl,
+      price: p.list_price || 0,
+      code: p.default_code || "",
+      uom: p.uom_id ? { uom_id: p.uom_id[0], uom_name: p.uom_id[1] } : null,
+    };
+  });
+};
+
+// Legacy retry wrapper — kept for backward compat but no longer used by fetchProductsOdoo
+const _legacyUnused = async () => {
   let retried = false;
   while (true) {
     try {
-      return await doFetch();
+      return;
     } catch (error) {
-      // Detect Odoo session expired error
       const isSessionExpired = error && (error.message === 'Session expired' || error.name === 'odoo.http.SessionExpiredException');
       if (isSessionExpired && !retried) {
         retried = true;
-        // Try to re-login using stored credentials
         try {
           const username = await AsyncStorage.getItem('odoo_username');
           const password = await AsyncStorage.getItem('odoo_password');
           if (username && password) {
             const loginResult = await odooLogin(username, password);
             if (loginResult.success) {
-              continue; // Retry original request
+              continue;
             } else {
               throw new Error('Odoo re-login failed: ' + (loginResult.error?.message || loginResult.error));
             }
@@ -499,15 +625,15 @@ export const fetchProductsOdoo = async ({ offset, limit, searchText, categoryId 
 export const fetchCategoriesOdoo = async ({ offset = 0, limit = 50, searchText = "" } = {}) => {
   try {
     // Fetch POS-specific categories only (pos.category)
-    const posCats = await fetchPosCategoriesOdoo();
+    const [posCats, { baseUrl }] = await Promise.all([fetchPosCategoriesOdoo(), _buildOdooHeaders()]);
     if (!Array.isArray(posCats) || posCats.length === 0) return [];
 
+    const _catTs = Date.now();
     const term = searchText && searchText.trim() ? searchText.trim().toLowerCase() : null;
     let filtered = term ? posCats.filter(c => (c.name || '').toLowerCase().includes(term)) : posCats;
 
     // Apply offset & limit
     const sliced = filtered.slice(offset, offset + limit);
-    const baseUrl = (ODOO_BASE_URL || '').replace(/\/$/, '');
 
     return sliced.map(category => ({
       _id: category.id,
@@ -517,12 +643,12 @@ export const fetchCategoriesOdoo = async ({ offset = 0, limit = 50, searchText =
       children: Array.isArray(category.child_ids) ? category.child_ids : (Array.isArray(category.child_id) ? category.child_id : []),
       product_count: Number(category.product_count || 0),
       has_image: !!category.has_image || !!category.image_128 || !!category.image_512,
-      // Prefer inline base64 images when present; otherwise provide a stable web/image URL fallback
+      // Prefer inline base64 images when present; otherwise provide a cache-busted web/image URL fallback
       image: (category.image_128 && typeof category.image_128 === 'string' && category.image_128.length > 0)
         ? `data:image/png;base64,${category.image_128}`
         : ((category.image_512 && typeof category.image_512 === 'string' && category.image_512.length > 0)
             ? `data:image/png;base64,${category.image_512}`
-            : `${baseUrl}/web/image?model=pos.category&id=${category.id}&field=image_128`),
+            : `${baseUrl}/web/image?model=pos.category&id=${category.id}&field=image_128&_ts=${_catTs}`),
       pos_config_ids: Array.isArray(category.pos_config_ids) ? category.pos_config_ids : [],
       sequence: category.sequence || 0,
       hour_after: category.hour_after ?? null,

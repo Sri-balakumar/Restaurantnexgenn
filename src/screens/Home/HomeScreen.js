@@ -1,19 +1,20 @@
-import React, { useMemo, useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
-  Dimensions,
+  Text,
+  FlatList,
   StyleSheet,
   ActivityIndicator,
   BackHandler,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   CarouselPagination,
   ImageContainer,
   ListHeader,
   Header,
 } from "@components/Home";
-import BottomSheet, { BottomSheetFlatList } from "@gorhom/bottom-sheet";
-import { fetchCategoriesOdoo as fetchCategories, fetchProductsByPosCategoryId } from "@api/services/generalApi";
+import { fetchCategoriesOdoo as fetchCategories, fetchProductsByPosCategoryId, clearProductCache } from "@api/services/generalApi";
 import { RoundedContainer, SafeAreaView } from "@components/containers";
 import { formatData } from "@utils/formatters";
 import { COLORS } from "@constants/theme";
@@ -23,8 +24,6 @@ import { useDataFetching, useLoader } from "@hooks";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import { fetchProductDetailsByBarcode } from "@api/details/detailApi";
 import { OverlayLoader } from "@components/Loader";
-
-const { height } = Dimensions.get("window");
 
 const HomeScreen = ({ navigation }) => {
   const [backPressCount, setBackPressCount] = useState(0);
@@ -41,7 +40,7 @@ const HomeScreen = ({ navigation }) => {
         BackHandler.exitApp();
       }
     }
-    return false; // Allow default back action
+    return false;
   }, [backPressCount, navigation]);
 
   useEffect(() => {
@@ -56,12 +55,10 @@ const HomeScreen = ({ navigation }) => {
     const backPressTimer = setTimeout(() => {
       setBackPressCount(0);
     }, 2000);
-
     return () => clearTimeout(backPressTimer);
   }, [backPressCount]);
 
   useEffect(() => {
-    // Show toast message when backPressCount changes to 1
     if (backPressCount === 1) {
       showToastMessage("Press back again to exit");
     }
@@ -79,30 +76,7 @@ const HomeScreen = ({ navigation }) => {
     }
   }, [isFocused]);
 
-  // Filter out categories named 'Food' or 'Drinks' and dedupe by name keeping last occurrence
-  const filteredCategories = (() => {
-    const raw = Array.isArray(data) ? data : [];
-    const excludeNames = ['food', 'drinks'];
-    const filtered = raw.filter(item => {
-      const name = item && (item.category_name || item.name || (Array.isArray(item) ? item[1] : ''));
-      if (!name) return true;
-      const lower = String(name).toLowerCase();
-      return !(excludeNames.includes(lower) || excludeNames.some(e => lower.includes(e)));
-    });
-    // Deduplicate by name, keeping the last occurrence
-    const seen = new Set();
-    const outReversed = [];
-    for (let i = filtered.length - 1; i >= 0; i--) {
-      const item = filtered[i];
-      const name = item && (item.category_name || item.name || (Array.isArray(item) ? item[1] : ''));
-      const key = name ? String(name).trim().toLowerCase() : `__idx_${i}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        outReversed.push(item);
-      }
-    }
-    return outReversed.reverse();
-  })();
+  const filteredCategories = Array.isArray(data) ? data : [];
 
   const handleLoadMore = () => {
     fetchMoreData();
@@ -139,20 +113,6 @@ const HomeScreen = ({ navigation }) => {
     navigation.navigate(screenName);
   };
 
-  // Define different snap points based on screen height
-  const snapPoints = useMemo(() => {
-    if (height < 700) {
-      return ["33%", "79%"];
-    } else if (height < 800) {
-      return ["45%", "83%"];
-    } else if (height < 810) {
-      return ["45%", "83%"];
-    } else {
-      return ["50%", "85%"];
-    }
-  }, [height]);
-
-
   const [detailLoading, startLoading, stopLoading] = useLoader(false);
 
   const handleScan = async (code) => {
@@ -161,7 +121,7 @@ const HomeScreen = ({ navigation }) => {
       const productDetails = await fetchProductDetailsByBarcode(code);
       if (productDetails.length > 0) {
         const details = productDetails[0];
-        navigation.navigate('ProductDetail', { detail: details })
+        navigation.navigate('ProductDetail', { detail: details });
       } else {
         showToastMessage("No Products found for this Barcode");
       }
@@ -172,19 +132,18 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
-
   return (
     <SafeAreaView backgroundColor={COLORS.primaryThemeColor}>
-      {/* rounded border */}
       <RoundedContainer>
-        {/* Header */}
-        <Header />
-        {/* Navigation Header removed per request */}
+        {/* Header - centered logo */}
+        <View style={styles.headerRow}>
+          <Header />
+        </View>
         {/* Carousel */}
         <CarouselPagination />
 
-        {/* Section */}
-        <View style={{ flexDirection: 'row', justifyContent: 'center', marginHorizontal: 8 }}>
+        {/* Take Orders button */}
+        <View style={{ flexDirection: 'row', justifyContent: 'center', marginHorizontal: 8, marginTop: 6, marginBottom: 12 }}>
           <ImageContainer
             source={require('@assets/images/logo/logo.png')}
             backgroundColor="#0ea5a4"
@@ -193,26 +152,33 @@ const HomeScreen = ({ navigation }) => {
           />
         </View>
 
-        {/* Bottom sheet */}
-        <BottomSheet snapPoints={snapPoints}>
-          {/* Product list header */}
-          <ListHeader title="Our Specials" subtitle="Chef's picks for today" />
-          {/* flatlist */}
-          <BottomSheetFlatList
-            data={formatData(filteredCategories, 3)}
-            numColumns={3}
-            initialNumToRender={5}
-            renderItem={renderItem}
-            keyExtractor={(item, index) => index.toString()}
-            contentContainerStyle={{ paddingBottom: "25%" }}
-            onEndReached={handleLoadMore}
-            showsVerticalScrollIndicator={false}
-            onEndReachedThreshold={0.1}
-            ListFooterComponent={
-              loading && <ActivityIndicator size="large" color="#0000ff" />
-            }
-          />
-        </BottomSheet>
+        {/* Our Specials header */}
+        <ListHeader title="Our Specials" subtitle="Chef's picks for today" />
+
+        {/* 3-column category grid */}
+        <FlatList
+          data={formatData(filteredCategories, 3)}
+          numColumns={3}
+          style={styles.list}
+          initialNumToRender={6}
+          renderItem={renderItem}
+          keyExtractor={(item, index) => index.toString()}
+          contentContainerStyle={styles.listContent}
+          onEndReached={handleLoadMore}
+          showsVerticalScrollIndicator={false}
+          onEndReachedThreshold={0.1}
+          ListEmptyComponent={
+            !loading ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No specials available</Text>
+              </View>
+            ) : null
+          }
+          ListFooterComponent={
+            loading ? <ActivityIndicator size="large" color={COLORS.primaryThemeColor} style={{ marginVertical: 16 }} /> : null
+          }
+        />
+
         <OverlayLoader visible={detailLoading} />
       </RoundedContainer>
     </SafeAreaView>
@@ -220,16 +186,36 @@ const HomeScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  headerRow: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  list: {
+    flex: 1,
+  },
+  listContent: {
+    paddingHorizontal: 8,
+    paddingBottom: 100,
+    paddingTop: 4,
+  },
   itemInvisible: {
     backgroundColor: "transparent",
   },
   itemStyle: {
     flex: 1,
     alignItems: "center",
-    margin: 6,
-    borderRadius: 8,
+    margin: 5,
+    borderRadius: 14,
     marginTop: 5,
     backgroundColor: "white",
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    marginTop: 40,
+  },
+  emptyText: {
+    color: '#888',
+    fontSize: 14,
   },
 });
 

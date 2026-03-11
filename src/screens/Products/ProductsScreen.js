@@ -1,94 +1,41 @@
-import React, { useEffect, useCallback, useState } from 'react';
-import { View, Text, TouchableOpacity, Modal, Pressable } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, TouchableOpacity, Modal, Pressable, ScrollView } from 'react-native';
 import { NavigationHeader } from '@components/Header';
 import { ProductsList } from '@components/Product';
-// ⬇️ CHANGE: use Odoo version instead of old backend
-import { fetchProductsOdoo, fetchProductCategoriesOdoo } from '@api/services/generalApi';
-import { useIsFocused, useFocusEffect } from '@react-navigation/native';
+import { fetchProductsOdoo } from '@api/services/generalApi';
+import { useIsFocused } from '@react-navigation/native';
 import { FlashList } from '@shopify/flash-list';
 import { formatData } from '@utils/formatters';
 import { OverlayLoader } from '@components/Loader';
 import { RoundedContainer, SafeAreaView, SearchContainer } from '@components/containers';
 import styles from './styles';
-import { EmptyState } from '@components/common/empty';
-import useDataFetching from '@hooks/useDataFetching';
 import useDebouncedSearch from '@hooks/useDebouncedSearch';
 import Toast from 'react-native-toast-message';
 import { useProductStore } from '@stores/product';
 
 const ProductsScreen = ({ navigation, route }) => {
-  // Only use a valid numeric pos.categoryId
   const rawPosCategoryId = route?.params?.categoryId;
   const posCategoryId = Number(rawPosCategoryId) > 0 ? Number(rawPosCategoryId) : undefined;
 
-  // If filteredProducts are passed from HomeScreen, use them directly
-  const passedFilteredProducts = route?.params?.filteredProducts;
+  const passedFilteredProductsRaw = route?.params?.filteredProducts;
+  const passedFilteredProducts = (Array.isArray(passedFilteredProductsRaw) && passedFilteredProductsRaw.length > 0)
+    ? passedFilteredProductsRaw
+    : null;
 
-  // State to hold all product categories for mapping
-  const [productCategories, setProductCategories] = useState([]);
-  const [mappedProductCategoryId, setMappedProductCategoryId] = useState(undefined);
-  const [filteredProducts, setFilteredProducts] = useState(passedFilteredProducts || []);
-
-  // Fetch all product categories on mount
-  useEffect(() => {
-    const fetchCats = async () => {
-      try {
-        const cats = await fetchProductCategoriesOdoo();
-        setProductCategories(cats);
-      } catch (e) {
-        // silently ignore
-      }
-    };
-    fetchCats();
-  }, []);
-
-  // Map pos.category to product.category by name
-  useEffect(() => {
-    // Assume pos.category name is passed in route.params.categoryName
-    const posCategoryName = route?.params?.categoryName;
-    let mappedId = undefined;
-    // Manual mapping for known mismatches
-    const manualCategoryMap = {
-      'APPETIZERS': 'STARTER',
-      // Add more mappings as needed
-    };
-    let effectiveCategoryName = posCategoryName;
-    if (posCategoryName && manualCategoryMap[posCategoryName.toUpperCase()]) {
-      effectiveCategoryName = manualCategoryMap[posCategoryName.toUpperCase()];
-    }
-    if (effectiveCategoryName && productCategories.length > 0) {
-      // Try exact (case-insensitive) match
-      let match = productCategories.find(cat => (cat.name || '').toLowerCase() === effectiveCategoryName.toLowerCase());
-      // If no exact match, try partial/fuzzy match
-      if (!match) {
-        match = productCategories.find(cat =>
-          (cat.name || '').toLowerCase().includes(effectiveCategoryName.toLowerCase()) ||
-          effectiveCategoryName.toLowerCase().includes((cat.name || '').toLowerCase())
-        );
-        if (match) {
-        }
-      }
-      if (match) {
-        mappedId = match.id;
-        if (!match.name.toLowerCase() === effectiveCategoryName.toLowerCase()) {
-        }
-      } else {
-        // no matching product category found
-      }
-    } else if (!effectiveCategoryName) {
-      // no categoryName provided
-    }
-    setMappedProductCategoryId(mappedId);
-  }, [route?.params?.categoryName, productCategories, posCategoryId]);
   const { fromCustomerDetails } = route.params || {};
-
   const isFocused = useIsFocused();
   const { addProduct, setCurrentCustomer } = useProductStore();
+
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
+  const [filteredProducts, setFilteredProducts] = useState(passedFilteredProducts || []);
   const [quickAddVisible, setQuickAddVisible] = useState(false);
   const [quickProduct, setQuickProduct] = useState(null);
   const [quickQty, setQuickQty] = useState(1);
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [backLoading, setBackLoading] = useState(false);
+  const fetchRef = useRef(0);
 
   const handleBack = () => {
     setBackLoading(true);
@@ -96,125 +43,153 @@ const ProductsScreen = ({ navigation, route }) => {
       try { navigation.goBack(); } catch (e) { navigation.navigate('Home'); }
     }, 80);
   };
-  // ⬇️ CHANGE: hook now uses fetchProductsOdoo
-  const { data, loading, fetchData, fetchMoreData } = useDataFetching(fetchProductsOdoo);
+
+  const doFetch = async (params) => {
+    const token = ++fetchRef.current;
+    setLoading(true);
+    setFetchError(null);
+    try {
+      const result = await fetchProductsOdoo(params);
+      if (token !== fetchRef.current) return;
+      setData(Array.isArray(result) ? result : []);
+    } catch (err) {
+      if (token !== fetchRef.current) return;
+      setFetchError(err?.message || String(err) || 'Unknown error');
+      setData([]);
+    } finally {
+      if (token === fetchRef.current) setLoading(false);
+    }
+  };
 
   const { searchText, handleSearchTextChange } = useDebouncedSearch(
     (text) => {
-      // If we have passed products, filter them client-side
       if (passedFilteredProducts) {
-        if (text && String(text).trim()) {
-          const filtered = passedFilteredProducts.filter(p => {
-            const name = String(p.product_name || p.name || '').toLowerCase();
-            return name.includes(String(text).toLowerCase());
-          });
-          setFilteredProducts(filtered);
+        const term = String(text || '').trim().toLowerCase();
+        if (term) {
+          setFilteredProducts(passedFilteredProducts.filter(p =>
+            String(p.product_name || p.name || '').toLowerCase().includes(term)
+          ));
         } else {
           setFilteredProducts(passedFilteredProducts);
         }
       } else {
-        fetchData({ searchText: text, categoryId: mappedProductCategoryId });
+        doFetch({ searchText: text, posCategoryId });
       }
     },
     500
   );
-  // If filteredProducts are passed, use them; otherwise, fetch as before
+
   useEffect(() => {
     if (passedFilteredProducts) {
-      // Apply current search text filter if any
-      if (searchText && String(searchText).trim()) {
-        const filtered = passedFilteredProducts.filter(p => {
-          const name = String(p.product_name || p.name || '').toLowerCase();
-          return name.includes(String(searchText).toLowerCase());
-        });
-        setFilteredProducts(filtered);
+      const term = String(searchText || '').trim().toLowerCase();
+      if (term) {
+        setFilteredProducts(passedFilteredProducts.filter(p =>
+          String(p.product_name || p.name || '').toLowerCase().includes(term)
+        ));
       } else {
         setFilteredProducts(passedFilteredProducts);
       }
-    } else {
-      if (isFocused) {
-        if (mappedProductCategoryId) {
-          fetchData({ searchText, categoryId: mappedProductCategoryId });
-        } else {
-          // If no mapping, clear products (or show empty)
-          fetchData({ searchText, categoryId: -1 }); // -1 will not match any product.category
-        }
-      }
+      return;
     }
-  }, [isFocused, mappedProductCategoryId, searchText, passedFilteredProducts]);
+    if (!isFocused) return;
+    doFetch({ searchText, posCategoryId });
+  }, [isFocused, posCategoryId, passedFilteredProducts]);
 
-  // If opened from POS, ensure cart owner is the POS guest so quick-add works
   useEffect(() => {
     if (fromCustomerDetails || route?.params?.fromPOS) {
-      try { setCurrentCustomer('pos_guest'); } catch (e) { /* ignore */ }
+      try { setCurrentCustomer('pos_guest'); } catch (e) {}
     }
   }, [route?.params?.fromPOS, fromCustomerDetails]);
 
-  const handleLoadMore = () => {
-    fetchMoreData({ searchText, categoryId: mappedProductCategoryId });
-  };
+  const productsToShow = passedFilteredProducts ? filteredProducts : data;
 
   const renderItem = ({ item }) => {
     if (item.empty) {
       return <View style={[styles.itemStyle, styles.itemInvisible]} />;
     }
-    const handleQuickAdd = () => {
-      // open quantity modal instead of immediate add
-      setQuickProduct(item);
-      setQuickQty(1);
-      setQuickAddVisible(true);
-    };
-
     return (
       <ProductsList
         item={item}
         onPress={() => navigation.navigate('ProductDetail', { detail: item, fromCustomerDetails, fromPOS: route?.params?.fromPOS })}
         showQuickAdd={!!route?.params?.fromPOS}
-        onQuickAdd={handleQuickAdd}
+        onQuickAdd={() => {
+          setQuickProduct(item);
+          setQuickQty(1);
+          setQuickAddVisible(true);
+        }}
       />
     );
   };
 
-  const renderEmptyState = () => (
-    <EmptyState imageSource={require('@assets/images/EmptyData/empty_data.png')} message={''} />
-  );
+  const renderBody = () => {
+    if (loading) return null;
 
-  const renderContent = () => (
-    <FlashList
-      data={formatData(passedFilteredProducts ? filteredProducts : data, 3)}
-      numColumns={3}
-      renderItem={renderItem}
-      keyExtractor={(item, index) => index.toString()}
-      contentContainerStyle={{ padding: 10, paddingBottom: 50 }}
-      onEndReached={handleLoadMore}
-      showsVerticalScrollIndicator={false}
-      onEndReachedThreshold={0.2}
-      estimatedItemSize={100}
-    />
-  );
-
-  const renderProducts = () => {
-    const productsToShow = passedFilteredProducts ? filteredProducts : data;
-    if (productsToShow.length === 0 && !loading) {
-      return renderEmptyState();
+    if (fetchError) {
+      return (
+        <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 20 }}>
+          <Text style={{ color: '#dc2626', fontWeight: '700', fontSize: 14, marginBottom: 8 }}>
+            Failed to load products
+          </Text>
+          <Text style={{ color: '#374151', fontSize: 12, marginBottom: 16, lineHeight: 18 }}>
+            {fetchError}
+          </Text>
+          <TouchableOpacity
+            onPress={() => doFetch({ searchText, posCategoryId })}
+            style={{ backgroundColor: '#111827', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 20, alignSelf: 'flex-start' }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Retry</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      );
     }
-    return renderContent();
+
+    if (productsToShow.length === 0) {
+      return (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30 }}>
+          <Text style={{ color: '#888', fontSize: 14, textAlign: 'center', marginBottom: 16 }}>
+            No products found{posCategoryId ? ` for category #${posCategoryId}` : ''}.
+          </Text>
+          {!passedFilteredProducts && (
+            <TouchableOpacity
+              onPress={() => doFetch({ searchText, posCategoryId })}
+              style={{ backgroundColor: '#111827', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 20 }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '700' }}>Retry</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      );
+    }
+
+    return (
+      <FlashList
+        data={formatData(productsToShow, 3)}
+        numColumns={3}
+        renderItem={renderItem}
+        keyExtractor={(item, index) => index.toString()}
+        contentContainerStyle={{ padding: 10, paddingBottom: 50 }}
+        showsVerticalScrollIndicator={false}
+        estimatedItemSize={100}
+      />
+    );
   };
 
   return (
     <SafeAreaView>
-      <NavigationHeader title="Products" onBackPress={handleBack} />
+      <NavigationHeader
+        title={route?.params?.categoryName ? `${route.params.categoryName}` : 'Products'}
+        onBackPress={handleBack}
+      />
       <SearchContainer
         placeholder="Search Products"
         onChangeText={handleSearchTextChange}
         value={searchText}
       />
       <RoundedContainer>
-        {renderProducts()}
+        {renderBody()}
       </RoundedContainer>
       <OverlayLoader visible={loading || backLoading} />
 
-      {/* Quick Add modal for ProductsScreen */}
       <Modal visible={quickAddVisible} transparent animationType="fade" onRequestClose={() => setQuickAddVisible(false)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }} onPress={() => setQuickAddVisible(false)}>
           <Pressable style={{ width: '88%', backgroundColor: '#fff', borderRadius: 12, padding: 16 }} onPress={(e) => e.stopPropagation()}>
@@ -247,16 +222,14 @@ const ProductsScreen = ({ navigation, route }) => {
                   };
                   addProduct(product);
                   Toast.show({ type: 'success', text1: 'Added', text2: `${product.name} × ${quickQty}` });
-                  // close qty modal and show confirmation popup
                   setQuickAddVisible(false);
                   setConfirmVisible(true);
                   setTimeout(() => {
                     setConfirmVisible(false);
                     setQuickProduct(null);
                     setQuickQty(1);
-                  }, 900); // auto-dismiss after 900ms
+                  }, 900);
                 } catch (e) {
-                  // quick add failed
                   setQuickAddVisible(false);
                 }
               }} style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: '#111827' }}>
@@ -266,7 +239,7 @@ const ProductsScreen = ({ navigation, route }) => {
           </Pressable>
         </Pressable>
       </Modal>
-      {/* Confirmation popup after add */}
+
       <Modal visible={confirmVisible} transparent animationType="fade" onRequestClose={() => setConfirmVisible(false)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }}>
           <Pressable style={{ width: '76%', backgroundColor: '#fff', borderRadius: 12, padding: 16 }}>

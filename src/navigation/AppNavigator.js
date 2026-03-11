@@ -1,11 +1,39 @@
 // navigation/TabNavigator.js
 import React from 'react';
+import { View, Text, Alert } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { MaterialIcons } from '@expo/vector-icons';
 import { TabBarIcon } from '@components/TabBar';
 import { HomeScreen, ProfileScreen } from '@screens';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuthStore } from '@stores/auth';
+import { clearProductCache } from '@api/services/generalApi';
+import { FONT_FAMILY } from '@constants/theme';
+
 const Tab = createBottomTabNavigator();
+const ORANGE = '#F47B20';
+
+const DummyScreen = () => null;
 
 const AppNavigator = () => {
+  const logoutStore = useAuthStore((state) => state.logout);
+
+  const handleLogout = (navigation) => {
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          clearProductCache();
+          await AsyncStorage.multiRemove(['userData', 'odoo_session_id']);
+          logoutStore();
+          navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+        },
+      },
+    ]);
+  };
+
   const tabBarOptions = {
     tabBarShowLabel: false,
     tabBarHideOnKeyboard: true,
@@ -17,10 +45,13 @@ const AppNavigator = () => {
       left: 10,
       borderTopRightRadius: 20,
       borderTopLeftRadius: 20,
-      // borderRadius: 10,
-      elevation: 0,
-      height: 60,
-      backgroundColor: '#2e294e', // Focused state background color
+      elevation: 8,
+      shadowColor: '#000',
+      shadowOpacity: 0.15,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: -3 },
+      height: 68,
+      backgroundColor: '#2e294e',
     }
   };
 
@@ -49,6 +80,26 @@ const AppNavigator = () => {
               label="Profile"
             />
         }}
+      />
+      <Tab.Screen
+        name="LogoutTab"
+        component={DummyScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <View style={{ alignItems: 'center', justifyContent: 'center', paddingTop: 4, minWidth: 70 }}>
+              <View style={{ alignItems: 'center', justifyContent: 'center', width: 48, height: 30, borderRadius: 15, backgroundColor: focused ? 'rgba(244,123,32,0.15)' : 'transparent' }}>
+                <MaterialIcons name="logout" size={22} color={focused ? ORANGE : 'rgba(255,255,255,0.6)'} />
+              </View>
+              <Text style={{ color: focused ? ORANGE : 'rgba(255,255,255,0.55)', fontSize: 11, fontFamily: FONT_FAMILY.urbanistMedium, marginTop: 3, letterSpacing: 0.3 }} numberOfLines={1}>Logout</Text>
+            </View>
+          ),
+        }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            handleLogout(navigation);
+          },
+        })}
       />
     </Tab.Navigator>
   );

@@ -23,8 +23,7 @@ function jsonrpcBody(params) {
 
 /**
  * Fetch available databases from the Odoo server.
- * Tries the custom /device/databases endpoint first, then falls back to
- * Odoo's built-in /web/database/list endpoint which works on ALL Odoo installs.
+ * Tries multiple endpoints — never throws (returns [] on any failure).
  * @param {string} baseUrl
  * @returns {Promise<string[]>} array of database names
  */
@@ -37,17 +36,26 @@ export async function fetchDatabases(baseUrl) {
     const res = await axios.post(`${base}/device/databases`, jsonrpcBody({}), opts);
     const dbs = res.data?.result?.databases;
     if (Array.isArray(dbs) && dbs.length > 0) return dbs;
-  } catch (_) {
-    // fall through to built-in endpoint
-  }
+  } catch (_) {}
 
-  // 2️⃣ Fall back to Odoo's built-in database list (works on all Odoo 16/17/18/19)
-  const res = await axios.post(`${base}/web/database/list`, jsonrpcBody({}), opts);
-  const result = res.data?.result;
-  // /web/database/list returns the array directly as result
-  if (Array.isArray(result)) return result;
-  // Some Odoo versions wrap it
-  if (Array.isArray(result?.databases)) return result.databases;
+  // 2️⃣ Try Odoo's built-in /web/database/list (all Odoo versions)
+  try {
+    const res = await axios.post(`${base}/web/database/list`, jsonrpcBody({}), opts);
+    // Check for JSON-RPC error in response (e.g. list_db=False config)
+    if (res.data?.error) throw new Error(res.data.error.data?.message || 'list disabled');
+    const result = res.data?.result;
+    if (Array.isArray(result) && result.length > 0) return result;
+    if (Array.isArray(result?.databases) && result.databases.length > 0) return result.databases;
+  } catch (_) {}
+
+  // 3️⃣ Try /web/database/list as a plain GET (some proxy setups)
+  try {
+    const res = await axios.get(`${base}/web/database/list`, { timeout: TIMEOUT_MS });
+    if (Array.isArray(res.data)) return res.data;
+    if (Array.isArray(res.data?.result)) return res.data.result;
+  } catch (_) {}
+
+  // All attempts failed — caller will fall back to manual DB entry
   return [];
 }
 
@@ -107,4 +115,69 @@ export async function registerDevice({ baseUrl, databaseName, deviceId, deviceNa
     { headers: JSONRPC_HEADERS }
   );
   return res.data?.result || { success: false, error: 'Empty response from server' };
+}
+
+/**
+ * Register device via QR scan — creates/updates device.registry record.
+ * Called after app scans the QR shown in Odoo New Device form.
+ * @param {{ baseUrl: string, databaseName: string, deviceId: string, deviceName: string }}
+ * @returns {Promise<{ status: 'registered'|'already_registered'|'blocked'|'error' }>}
+ */
+export async function registerFromScan({ baseUrl, databaseName, deviceId, deviceName, recordId }) {
+  const base = normalizeUrl(baseUrl);
+  const res = await axios.post(
+    `${base}/device/register-from-scan`,
+    jsonrpcBody({
+      device_id: deviceId,
+      device_name: deviceName || 'NexGen Restaurant App',
+      database_name: databaseName,
+      base_url: base,
+      record_id: recordId || null,
+    }),
+    { headers: JSONRPC_HEADERS, timeout: TIMEOUT_MS }
+  );
+  return res.data?.result || { status: 'error', message: 'Empty response from server' };
+}
+
+/**
+ * Step 1 — Check if this device UUID is pre-registered in Odoo.
+ * Admin must have created a device.registry record with mac_address = deviceUUID.
+ *
+ * Response: { status: 'found'|'not_found'|'error', device_name?, device_status? }
+ * @param {string} baseUrl
+ * @param {string} deviceUUID  — the app's persistent UUID (sent as mac_address)
+ * @param {string} databaseName
+ */
+export async function lookupDevice(baseUrl, deviceUUID, databaseName) {
+  const base = normalizeUrl(baseUrl);
+  const res = await axios.post(
+    `${base}/device/lookup`,
+    jsonrpcBody({ mac_address: deviceUUID, database_name: databaseName }),
+    { headers: JSONRPC_HEADERS, timeout: TIMEOUT_MS }
+  );
+  return res.data?.result || { status: 'error', message: 'Empty response from server' };
+}
+
+/**
+ * Step 2 — Activate a pre-registered device (link UUID, mark Active).
+ * Call only after lookupDevice returns status='found'.
+ *
+ * Response: { status: 'activated'|'already_active'|'blocked'|'not_found'|'error' }
+ * @param {string} baseUrl
+ * @param {string} deviceUUID
+ * @param {string} databaseName
+ */
+export async function activateDevice(baseUrl, deviceUUID, databaseName) {
+  const base = normalizeUrl(baseUrl);
+  const res = await axios.post(
+    `${base}/device/activate`,
+    jsonrpcBody({
+      mac_address: deviceUUID,
+      database_name: databaseName,
+      device_id: deviceUUID,
+      base_url: base,
+    }),
+    { headers: JSONRPC_HEADERS, timeout: TIMEOUT_MS }
+  );
+  return res.data?.result || { status: 'error', message: 'Empty response from server' };
 }

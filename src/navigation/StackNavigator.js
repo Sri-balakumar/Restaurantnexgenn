@@ -12,6 +12,7 @@ import { AuditDetails, AuditForm, AuditScreen } from "@screens/Home/Options/Audi
 import { PrivacyPolicy } from "@screens/Auth";
 import LoginScreenOdoo from "@screens/Auth/LoginScreenOdoo";
 import { DeviceSetupScreen } from "@screens/DeviceSetup";
+import DeviceQRScannerScreen from "@screens/DeviceSetup/DeviceQRScannerScreen";
 import { DeviceRegistryScreen } from "@screens/DeviceRegistry";
 import CategoriesScreen from "@screens";
 import Scanner from "@components/Scanner";
@@ -79,6 +80,11 @@ const StackNavigator = () => {
       <Stack.Screen
         name="DeviceSetup"
         component={DeviceSetupScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="DeviceQRScanner"
+        component={DeviceQRScannerScreen}
         options={{ headerShown: false }}
       />
       {/* Login screen shown after device is registered */}
