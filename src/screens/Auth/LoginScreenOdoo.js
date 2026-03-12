@@ -25,6 +25,7 @@ import { showToastMessage } from "@components/Toast";
 import API_BASE_URL from "@api/config";
 import ODOO_DEFAULTS, { DEFAULT_ODOO_BASE_URL, DEFAULT_ODOO_DB } from "@api/config/odooConfig";
 import { clearProductCache } from "@api/services/generalApi";
+import usePosLogo from "@hooks/usePosLogo";
 
 LogBox.ignoreAllLogs();
 
@@ -34,6 +35,8 @@ const ORANGE = '#F47B20';
 const LoginScreenOdoo = () => {
   const navigation = useNavigation();
   const setUser = useAuthStore((state) => state.login);
+
+  const logoSource = usePosLogo();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -153,10 +156,14 @@ const LoginScreenOdoo = () => {
 
         {/* ── Header with logo ── */}
         <View style={styles.header}>
-          <Image
-            source={require('@assets/images/logo2.png')}
-            style={styles.logo}
-          />
+          <View style={styles.logoGlow} />
+          {logoSource ? (
+            <Image
+              source={logoSource}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          ) : null}
         </View>
 
         {/* ── White card ── */}
@@ -240,8 +247,15 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     height: 300,
   },
+  logoGlow: {
+    position: 'absolute',
+    width: 340,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
   logo: {
-    width: 320,
+    width: 260,
     height: 120,
     resizeMode: 'contain',
   },

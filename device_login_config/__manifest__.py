@@ -43,7 +43,8 @@
             'device_login_config/static/src/js/device_autosave.js',
         ],
     },
+    'images': ['static/description/icon.png'],
     'installable': True,
-    'application': False,
+    'application': True,
     'license': 'LGPL-3',
 }
