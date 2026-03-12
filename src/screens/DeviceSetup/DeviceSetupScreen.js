@@ -136,25 +136,56 @@ const DeviceSetupScreen = () => {
       const lookup = await deviceApi.lookupDevice(base, deviceUUID, selectedDb);
 
       if (lookup.status === 'not_found') {
-        Alert.alert(
-          'Device Not Registered',
-          'This device is not registered.\n\nDevice Model: ' +
-          getDeviceModel() +
-          '\nDevice ID: ' +
-          deviceUUID +
-          '\n\nAsk your admin to open Device Registry → New Device — a QR code will appear. Then tap Scan QR below.',
-          [
-            { text: 'OK' },
-            {
-              text: 'Scan QR',
-              onPress: () => navigation.navigate('DeviceQRScanner', {
-                deviceUUID,
-                deviceModel: getDeviceModel(),
-                serverUrl: base,
-              }),
-            },
-          ]
-        );
+        // Check if device was previously registered (e.g. WiFi/IP changed)
+        const prevRegistered = await AsyncStorage.getItem('device_registered');
+        if (prevRegistered === 'true' || prevRegistered === 'skipped') {
+          Alert.alert(
+            'Server IP Changed?',
+            'This device was previously configured but is not found on this server IP.\n\nIf you changed WiFi/network, tap "Update & Continue" to use the new server address.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Update & Continue',
+                onPress: async () => {
+                  await AsyncStorage.multiSet([
+                    ['device_server_url', base],
+                    ['device_db_name', selectedDb],
+                    ['device_registered', 'skipped'],
+                  ]);
+                  navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+                },
+              },
+              {
+                text: 'Scan QR',
+                onPress: () => navigation.navigate('DeviceQRScanner', {
+                  deviceUUID,
+                  deviceModel: getDeviceModel(),
+                  serverUrl: base,
+                }),
+              },
+            ]
+          );
+        } else {
+          Alert.alert(
+            'Device Not Registered',
+            'This device is not registered.\n\nDevice Model: ' +
+            getDeviceModel() +
+            '\nDevice ID: ' +
+            deviceUUID +
+            '\n\nAsk your admin to open Device Registry → New Device — a QR code will appear. Then tap Scan QR below.',
+            [
+              { text: 'OK' },
+              {
+                text: 'Scan QR',
+                onPress: () => navigation.navigate('DeviceQRScanner', {
+                  deviceUUID,
+                  deviceModel: getDeviceModel(),
+                  serverUrl: base,
+                }),
+              },
+            ]
+          );
+        }
         return;
       }
 
@@ -198,8 +229,16 @@ const DeviceSetupScreen = () => {
         showToastMessage('Connection timed out. Check your network and server URL.');
       } else if (err.message?.includes('Network Error') || err.message?.includes('ECONNREFUSED')) {
         showToastMessage('Cannot reach server. Check the URL and ensure Odoo is running.');
-      } else if (err.message?.includes('404')) {
-        showToastMessage('Device module not found on server. Please install the device_login_config module in Odoo.');
+      } else if (err.message?.includes('404') || err.response?.status === 404) {
+        // Device endpoint not available — DB loaded fine so server is valid, auto-continue
+        try {
+          await AsyncStorage.multiSet([
+            ['device_server_url', base],
+            ['device_db_name', selectedDb],
+            ['device_registered', 'skipped'],
+          ]);
+          navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+        } catch (_) {}
       } else {
         showToastMessage(`Error: ${err.message}`);
       }
@@ -343,6 +382,38 @@ const DeviceSetupScreen = () => {
               Your Device ID must be pre-registered by your admin.{'\n'}
               You only need to do this once per device.
             </Text>
+
+            <TouchableOpacity
+              style={styles.skipBtn}
+              onPress={() => {
+                if (!serverUrl.trim() || !selectedDb) {
+                  showToastMessage('Enter server URL and select a database first');
+                  return;
+                }
+                const base = normalizeUrl(serverUrl);
+                Alert.alert(
+                  'Skip Registration',
+                  'Save this server and go directly to login?\n\nUse this if your server doesn\'t have the device module or you just changed WiFi.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Skip & Login',
+                      onPress: async () => {
+                        await AsyncStorage.multiSet([
+                          ['device_server_url', base],
+                          ['device_db_name', selectedDb],
+                          ['device_registered', 'skipped'],
+                        ]);
+                        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+                      },
+                    },
+                  ]
+                );
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.skipBtnText}>Skip registration and go to login →</Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -551,6 +622,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
     marginTop: 4,
+  },
+  skipBtn: {
+    marginTop: 18,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  skipBtnText: {
+    fontSize: 13,
+    color: PURPLE,
+    fontFamily: FONT_FAMILY.urbanistBold,
+    textDecorationLine: 'underline',
   },
 });
 
