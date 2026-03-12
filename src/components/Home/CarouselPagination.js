@@ -10,8 +10,7 @@ const CarouselPagination = () => {
         { image: require('@assets/images/Home/Banner/banner_phone_1.png') },
         { image: require('@assets/images/Home/Banner/banner_phone_2.png') },
         { image: require('@assets/images/Home/Banner/banner_phone_3.png') },
-        { image: require('@assets/images/Home/Banner/banner_phone_4.png') },
-        { image: require('@assets/images/Home/Banner/banner_phone_5.png') }
+        { image: require('@assets/images/Home/Banner/banner_phone_4.png') }
     ];
     const carouselMargin = 8;
 
