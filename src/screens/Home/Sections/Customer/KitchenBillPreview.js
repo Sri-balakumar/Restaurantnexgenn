@@ -1,11 +1,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, Platform, StatusBar, Modal, StyleSheet } from 'react-native';
-import { WebView } from 'react-native-webview';
+import { View, Text, ScrollView, TouchableOpacity, Alert, Platform, StatusBar, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NavigationHeader } from '@components/Header';
 import { COLORS } from '@constants/theme';
-import { printAndShareReceipt } from '@print/printReceipt';
-import { buildKitchenBillHtml } from '@utils/printing/kitchenBillHtml';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import kotService from '@api/services/kotService';
 import { addLineToOrderOdoo, fetchPosOrderById, fetchOrderLinesByIds } from '@api/services/generalApi';
@@ -13,11 +10,8 @@ import useKitchenTickets from '@stores/kitchen/ticketsStore';
 
 const KitchenBillPreview = ({ navigation, route }) => {
   const { items = [], orderId, orderName = '', tableName = '', serverName = '', order_type = null, cartOwner = null } = route?.params || {};
-  const [printing, setPrinting] = useState(false);
-  const [previewVisible, setPreviewVisible] = useState(false);
+  const [printingMode, setPrintingMode] = useState(null); // null | 'addons' | 'full'
   const [resolvedUserName, setResolvedUserName] = useState(serverName);
-  const [previewHtml, setPreviewHtml] = useState('');
-  const [previewMode, setPreviewMode] = useState('full');
   const getDelta = useKitchenTickets((s) => s.getDelta);
   const setSnapshot = useKitchenTickets((s) => s.setSnapshot);
   const snapshot = useKitchenTickets((s) => (orderId ? (s.snapshots[orderId] || {}) : (cartOwner ? (s.snapshots[cartOwner] || {}) : {})));
@@ -111,23 +105,6 @@ const KitchenBillPreview = ({ navigation, route }) => {
     } catch (e) {}
   };
 
-  const handleShowPreview = ({ deltaOnly = true } = {}) => {
-    const list = deltaOnly ? (deltaItems.length ? deltaItems : mapped) : mapped;
-    const html = buildKitchenBillHtml({
-      restaurant: 'My Restaurant',
-      orderName,
-      orderId: orderId || null,
-      tableName,
-      serverName: resolvedUserName,
-      items: list,
-      order_type,
-      mode: deltaOnly ? 'addons' : 'full',
-    });
-    setPreviewHtml(html);
-    setPreviewMode(deltaOnly ? 'addons' : 'full');
-    setPreviewVisible(true);
-  };
-
   useEffect(() => {
     const setupKot = async () => {
       try {
@@ -147,8 +124,8 @@ const KitchenBillPreview = ({ navigation, route }) => {
     setupKot();
   }, []);
 
-  const handlePrintFromPreview = async () => {
-    setPrinting(true);
+  const handleDirectPrint = async ({ deltaOnly = true } = {}) => {
+    setPrintingMode(deltaOnly ? 'addons' : 'full');
     try {
       let resolvedName = serverName;
       try {
@@ -157,6 +134,10 @@ const KitchenBillPreview = ({ navigation, route }) => {
         resolvedName = ud?.related_profile?.name || ud?.user_name || ud?.name || serverName || resolvedName;
       } catch (e) {}
 
+      // Ensure all items are synced to Odoo before printing
+      await ensureOrderSynced();
+
+      const printItems = deltaOnly ? (deltaItems.length ? deltaItems : mapped) : mapped;
       const isTakeaway = String(order_type || '').toUpperCase() === 'TAKEAWAY' || String(order_type || '').toUpperCase() === 'TAKEOUT';
       const kotData = {
         table_name: tableName,
@@ -168,8 +149,8 @@ const KitchenBillPreview = ({ navigation, route }) => {
         order_number: orderName || (orderId ? String(orderId) : undefined),
         guest_count: route?.params?.guest_count ?? 0,
         waiter: resolvedName,
-        print_type: previewMode === 'addons' ? 'ADDON' : 'NEW',
-        items: (previewMode === 'addons' ? deltaItems : mapped).map((it) => ({
+        print_type: deltaOnly ? 'ADDON' : 'NEW',
+        items: printItems.map((it) => ({
           name: it.name,
           qty: it.qty,
           note: it.note || '',
@@ -179,7 +160,6 @@ const KitchenBillPreview = ({ navigation, route }) => {
       if (snapshotKey) setSnapshot(snapshotKey, items);
       const result = await kotService.printKot(kotData);
       if (result && result.success !== false) {
-        setPreviewVisible(false);
         Alert.alert('KOT Printed', 'Kitchen Order Ticket sent to printer.');
       } else {
         Alert.alert('Print error', result?.error || 'Failed to print KOT');
@@ -187,73 +167,114 @@ const KitchenBillPreview = ({ navigation, route }) => {
     } catch (e) {
       Alert.alert('Print error', e.message || 'Failed to print KOT');
     } finally {
-      setPrinting(false);
+      setPrintingMode(null);
     }
   };
 
   const renderLine = (item, index) => (
     <View key={`${item.id}_${index}`} style={s.lineRow}>
-      <Text style={s.lineText}>{item.qty} x {item.name}</Text>
-      {item.note ? <Text style={s.lineNote}>{item.note}</Text> : null}
+      <View style={s.lineQtyBadge}>
+        <Text style={s.lineQtyText}>{item.qty}</Text>
+      </View>
+      <View style={s.lineInfo}>
+        <Text style={s.lineName}>{item.name}</Text>
+        {item.note ? <Text style={s.lineNote}>{item.note}</Text> : null}
+      </View>
     </View>
   );
 
+  const isTakeaway = String(order_type || '').toUpperCase() === 'TAKEAWAY' || String(order_type || '').toUpperCase() === 'TAKEOUT';
+
   return (
     <SafeAreaView style={s.safe} edges={['top', 'left', 'right']}>
-      <View style={{ paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 0 }}>
-        <NavigationHeader title="Kitchen Bill" onBackPress={() => navigation.goBack()} />
+      <View style={{ paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 0, backgroundColor: COLORS.primaryThemeColor || '#2E294E' }}>
+        <NavigationHeader title="Kitchen Bill" onBackPress={() => navigation.goBack()} logo={false} />
       </View>
 
-      {/* Scrollable content */}
       <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent}>
-        <View style={s.card}>
-          <Text style={s.orderTitle}>Order: {orderName || ''}</Text>
-          {orderId ? <Text style={s.meta}>Order ID: #{orderId}</Text> : null}
-          {tableName ? <Text style={s.meta}>Table: {tableName}</Text> : null}
-          {resolvedUserName ? <Text style={s.meta}>Server: {resolvedUserName}</Text> : null}
+        {/* Order info card */}
+        <View style={s.infoCard}>
+          <View style={s.infoHeader}>
+            <Text style={s.infoIcon}>🧾</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.orderTitle}>{(orderName && orderName !== '/') ? orderName : (orderId ? `Order #${orderId}` : 'Order')}</Text>
+              {orderId && orderName && orderName !== '/' ? <Text style={s.orderId}>#{orderId}</Text> : null}
+            </View>
+            {isTakeaway && (
+              <View style={s.typeBadge}>
+                <Text style={s.typeBadgeText}>Takeout</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={s.infoGrid}>
+            {tableName ? (
+              <View style={s.infoItem}>
+                <Text style={s.infoLabel}>Table</Text>
+                <Text style={s.infoValue}>{tableName}</Text>
+              </View>
+            ) : null}
+            {resolvedUserName ? (
+              <View style={s.infoItem}>
+                <Text style={s.infoLabel}>Server</Text>
+                <Text style={s.infoValue}>{resolvedUserName}</Text>
+              </View>
+            ) : null}
+            <View style={s.infoItem}>
+              <Text style={s.infoLabel}>Items</Text>
+              <Text style={s.infoValue}>{mapped.length}</Text>
+            </View>
+          </View>
         </View>
 
-        <View style={s.card}>
-          <Text style={s.sectionTitle}>Add-ons since last print</Text>
-          {deltaItems.length > 0 ? (
-            deltaItems.map(renderLine)
-          ) : (
-            <Text style={s.emptyText}>No new items. Printing will include all items.</Text>
-          )}
+        {/* Add-ons section */}
+        {deltaItems.length > 0 ? (
+          <View style={s.sectionCard}>
+            <View style={s.sectionHeader}>
+              <View style={[s.sectionDot, { backgroundColor: '#F47B20' }]} />
+              <Text style={s.sectionTitle}>New Items</Text>
+              <View style={s.countBadge}>
+                <Text style={s.countBadgeText}>{deltaItems.length}</Text>
+              </View>
+            </View>
+            {deltaItems.map(renderLine)}
+          </View>
+        ) : (
+          <View style={s.sectionCard}>
+            <View style={s.sectionHeader}>
+              <View style={[s.sectionDot, { backgroundColor: '#22c55e' }]} />
+              <Text style={s.sectionTitle}>New Items</Text>
+            </View>
+            <View style={s.emptyWrap}>
+              <Text style={s.emptyText}>No new items since last print</Text>
+            </View>
+          </View>
+        )}
 
-          <View style={s.separator} />
-
-          <Text style={s.sectionTitle}>Full order ({mapped.length} items)</Text>
+        {/* Full order section */}
+        <View style={s.sectionCard}>
+          <View style={s.sectionHeader}>
+            <View style={[s.sectionDot, { backgroundColor: '#7c3aed' }]} />
+            <Text style={s.sectionTitle}>Full Order</Text>
+            <View style={[s.countBadge, { backgroundColor: '#f3f0ff' }]}>
+              <Text style={[s.countBadgeText, { color: '#7c3aed' }]}>{mapped.length}</Text>
+            </View>
+          </View>
           {mapped.map(renderLine)}
         </View>
       </ScrollView>
 
-      {/* Fixed bottom buttons — always visible */}
+      {/* Bottom buttons */}
       <View style={s.bottomBar}>
-        <TouchableOpacity disabled={printing} onPress={() => handleShowPreview({ deltaOnly: true })} style={s.primaryBtn}>
-          <Text style={s.btnText}>{printing ? 'Printing…' : 'Print Add-ons Only'}</Text>
+        <TouchableOpacity disabled={!!printingMode} onPress={() => handleDirectPrint({ deltaOnly: true })} style={[s.primaryBtn, printingMode === 'addons' && { opacity: 0.7 }]} activeOpacity={0.85}>
+          <Text style={s.primaryBtnIcon}>🖨️</Text>
+          <Text style={s.primaryBtnText}>{printingMode === 'addons' ? 'Printing...' : 'Print Add-ons'}</Text>
         </TouchableOpacity>
-        <TouchableOpacity disabled={printing} onPress={() => handleShowPreview({ deltaOnly: false })} style={s.secondaryBtn}>
-          <Text style={s.btnText}>{printing ? 'Printing…' : 'Print Full Order'}</Text>
+        <TouchableOpacity disabled={!!printingMode} onPress={() => handleDirectPrint({ deltaOnly: false })} style={[s.secondaryBtn, printingMode === 'full' && { opacity: 0.7 }]} activeOpacity={0.85}>
+          <Text style={s.secondaryBtnIcon}>📋</Text>
+          <Text style={s.secondaryBtnText}>{printingMode === 'full' ? 'Printing...' : 'Print Full Order'}</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Receipt Preview Modal */}
-      <Modal visible={previewVisible} animationType="slide" onRequestClose={() => setPreviewVisible(false)}>
-        <SafeAreaView style={s.previewSafe}>
-          <View style={{ flex: 1 }}>
-            <WebView originWhitelist={["*"]} source={{ html: previewHtml }} style={{ flex: 1 }} />
-          </View>
-          <View style={s.previewActions}>
-            <TouchableOpacity onPress={() => setPreviewVisible(false)} style={s.cancelBtn}>
-              <Text style={s.cancelText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handlePrintFromPreview} disabled={printing} style={s.printBtn}>
-              <Text style={s.btnText}>{printing ? 'Printing…' : 'Print'}</Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      </Modal>
     </SafeAreaView>
   );
 };
@@ -261,25 +282,228 @@ const KitchenBillPreview = ({ navigation, route }) => {
 export default KitchenBillPreview;
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f8fafc' },
+  safe: { flex: 1, backgroundColor: '#f0f2f8' },
   scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 8 },
-  card: { backgroundColor: '#fff', borderRadius: 8, padding: 16, marginBottom: 12 },
-  orderTitle: { fontSize: 16, fontWeight: '800' },
-  meta: { color: '#6b7280', marginTop: 4 },
-  sectionTitle: { fontWeight: '800', marginBottom: 8 },
-  lineRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8 },
-  lineText: { fontWeight: '700' },
-  lineNote: { color: '#6b7280' },
-  emptyText: { color: '#6b7280' },
-  separator: { height: 1, backgroundColor: '#e5e7eb', marginVertical: 12 },
-  bottomBar: { padding: 16, paddingBottom: 24, backgroundColor: '#f8fafc', borderTopWidth: 1, borderColor: '#e5e7eb' },
-  primaryBtn: { backgroundColor: COLORS.primary || '#111827', paddingVertical: 14, borderRadius: 8, alignItems: 'center', marginBottom: 8 },
-  secondaryBtn: { backgroundColor: '#4b5563', paddingVertical: 14, borderRadius: 8, alignItems: 'center' },
-  btnText: { color: '#fff', fontWeight: '800' },
-  previewSafe: { flex: 1, backgroundColor: '#fff' },
-  previewActions: { flexDirection: 'row', justifyContent: 'space-around', padding: 16 },
-  cancelBtn: { backgroundColor: '#ccc', padding: 14, borderRadius: 8, minWidth: 100, alignItems: 'center' },
-  cancelText: { fontWeight: '800' },
-  printBtn: { backgroundColor: COLORS.primary || '#111827', padding: 14, borderRadius: 8, minWidth: 100, alignItems: 'center' },
+  scrollContent: { padding: 16, paddingBottom: 16 },
+
+  // Info card
+  infoCard: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 14,
+    ...Platform.select({
+      ios: { shadowColor: '#1a1a2e', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
+      android: { elevation: 4 },
+    }),
+  },
+  infoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f2f8',
+  },
+  infoIcon: {
+    fontSize: 28,
+    marginRight: 12,
+  },
+  orderTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#1a1a2e',
+    letterSpacing: 0.3,
+  },
+  orderId: {
+    fontSize: 12,
+    color: '#8896ab',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  typeBadge: {
+    backgroundColor: '#fff5eb',
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#F47B2040',
+  },
+  typeBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#F47B20',
+  },
+  infoGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  infoItem: {
+    flex: 1,
+    backgroundColor: '#f8f9fc',
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+  },
+  infoLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#8896ab',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  infoValue: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1a1a2e',
+  },
+
+  // Section cards
+  sectionCard: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 14,
+    ...Platform.select({
+      ios: { shadowColor: '#1a1a2e', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
+      android: { elevation: 3 },
+    }),
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f2f8',
+  },
+  sectionDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 10,
+  },
+  sectionTitle: {
+    fontWeight: '800',
+    fontSize: 16,
+    color: '#1a1a2e',
+    flex: 1,
+    letterSpacing: 0.2,
+  },
+  countBadge: {
+    backgroundColor: '#fff5eb',
+    paddingVertical: 3,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+  },
+  countBadgeText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#F47B20',
+  },
+  emptyWrap: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: '#8896ab',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+
+  // Line items
+  lineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f8f9fc',
+  },
+  lineQtyBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#f0f2f8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  lineQtyText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#1a1a2e',
+  },
+  lineInfo: {
+    flex: 1,
+  },
+  lineName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1a1a2e',
+  },
+  lineNote: {
+    color: '#8896ab',
+    fontSize: 12,
+    marginTop: 2,
+  },
+
+  // Bottom bar
+  bottomBar: {
+    padding: 16,
+    paddingBottom: 24,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    ...Platform.select({
+      ios: { shadowColor: '#1a1a2e', shadowOpacity: 0.1, shadowRadius: 16, shadowOffset: { width: 0, height: -4 } },
+      android: { elevation: 12 },
+    }),
+  },
+  primaryBtn: {
+    backgroundColor: '#7c3aed',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    marginBottom: 8,
+    ...Platform.select({
+      ios: { shadowColor: '#7c3aed', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
+      android: { elevation: 6 },
+    }),
+  },
+  primaryBtnIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+  primaryBtnText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 14,
+    letterSpacing: 0.3,
+  },
+  secondaryBtn: {
+    backgroundColor: '#F47B20',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    ...Platform.select({
+      ios: { shadowColor: '#F47B20', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
+      android: { elevation: 6 },
+    }),
+  },
+  secondaryBtnIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+  secondaryBtnText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 14,
+    letterSpacing: 0.3,
+  },
+
 });

@@ -6,6 +6,9 @@ import {
   StyleSheet,
   ActivityIndicator,
   BackHandler,
+  TouchableOpacity,
+  Image,
+  Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -70,12 +73,6 @@ const HomeScreen = ({ navigation }) => {
     }, [])
   );
 
-  useEffect(() => {
-    if (isFocused) {
-      fetchData();
-    }
-  }, [isFocused]);
-
   const filteredCategories = Array.isArray(data) ? data : [];
 
   const handleLoadMore = () => {
@@ -89,21 +86,12 @@ const HomeScreen = ({ navigation }) => {
     return (
       <CategoryList
         item={item}
-        onPress={async () => {
-          try {
-            const products = await fetchProductsByPosCategoryId(item._id);
-            navigation.navigate("Products", {
-              categoryId: item._id,
-              categoryName: item.category_name || item.name,
-              filteredProducts: products
-            });
-          } catch (err) {
-            navigation.navigate("Products", {
-              categoryId: item._id,
-              categoryName: item.category_name || item.name,
-              filteredProducts: []
-            });
-          }
+        onPress={() => {
+          navigation.navigate("Products", {
+            categoryId: item._id,
+            categoryName: item.category_name || item.name,
+            filteredProducts: []
+          });
         }}
       />
     );
@@ -143,14 +131,20 @@ const HomeScreen = ({ navigation }) => {
         <CarouselPagination />
 
         {/* Take Orders button */}
-        <View style={{ flexDirection: 'row', justifyContent: 'center', marginHorizontal: 8, marginTop: 6, marginBottom: 12 }}>
-          <ImageContainer
-            source={require('@assets/images/logo/logo.png')}
-            backgroundColor="#0ea5a4"
-            title="Take Orders"
-            onPress={() => navigateToScreen("POSRegister")}
-          />
-        </View>
+        <TouchableOpacity
+          onPress={() => navigateToScreen("POSRegister")}
+          style={styles.takeOrderBtn}
+          activeOpacity={0.85}
+        >
+          <View style={styles.takeOrderIconWrap}>
+            <Image source={require('@assets/images/logo/logo.png')} style={styles.takeOrderIcon} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.takeOrderTitle}>Take Orders</Text>
+            <Text style={styles.takeOrderSub}>Dine-in, Takeaway & more</Text>
+          </View>
+          <Text style={styles.takeOrderArrow}>›</Text>
+        </TouchableOpacity>
 
         {/* Our Specials header */}
         <ListHeader title="Our Specials" subtitle="Chef's picks for today" />
@@ -216,6 +210,52 @@ const styles = StyleSheet.create({
   emptyText: {
     color: '#888',
     fontSize: 14,
+  },
+  takeOrderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F47B20',
+    marginHorizontal: 14,
+    marginTop: 8,
+    marginBottom: 14,
+    borderRadius: 16,
+    padding: 16,
+    ...Platform.select({
+      ios: { shadowColor: '#F47B20', shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 6 } },
+      android: { elevation: 8 },
+    }),
+  },
+  takeOrderIconWrap: {
+    width: 50,
+    height: 50,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  takeOrderIcon: {
+    width: 36,
+    height: 36,
+    resizeMode: 'contain',
+  },
+  takeOrderTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: 0.3,
+  },
+  takeOrderSub: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: 2,
+  },
+  takeOrderArrow: {
+    fontSize: 28,
+    fontWeight: '300',
+    color: 'rgba(255,255,255,0.5)',
+    marginLeft: 8,
   },
 });
 

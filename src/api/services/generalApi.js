@@ -387,29 +387,32 @@ export const validatePosOrderOdoo = async (orderId) => {
 // Fetch POS registers (configurations) from Odoo
 export const fetchPOSRegisters = async ({ limit = 20, offset = 0 } = {}) => {
   try {
-    const response = await axios.post(
-      `${ODOO_BASE_URL}/web/dataset/call_kw`,
-      {
-        jsonrpc: "2.0",
-        method: "call",
+    const { baseUrl, headers } = await _buildOdooHeaders();
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
         params: {
-          model: "pos.config",
-          method: "search_read",
+          model: 'pos.config',
+          method: 'search_read',
           args: [[]],
           kwargs: {
-            fields: ["id", "name"],
+            fields: ['id', 'name'],
             limit,
             offset,
-            order: "id desc",
+            order: 'id desc',
           },
         },
-      },
-      { headers: { "Content-Type": "application/json" } }
-    );
-    if (response.data.error) {
-      throw new Error("Odoo JSON-RPC error");
+        id: new Date().getTime(),
+      }),
+    });
+    const data = await response.json();
+    if (data.error) {
+      throw new Error('Odoo JSON-RPC error');
     }
-    return response.data.result || [];
+    return data.result || [];
   } catch (error) {
     throw error;
   }
@@ -417,43 +420,46 @@ export const fetchPOSRegisters = async ({ limit = 20, offset = 0 } = {}) => {
 // Fetch POS sessions (registers) from Odoo
 export const fetchPOSSessions = async ({ limit = 20, offset = 0, state = '' } = {}) => {
   try {
+    const { baseUrl, headers } = await _buildOdooHeaders();
     let domain = [];
     if (state) {
-      domain = [["state", "=", state]];
+      domain = [['state', '=', state]];
     }
-    const response = await axios.post(
-      `${ODOO_BASE_URL}/web/dataset/call_kw`,
-      {
-        jsonrpc: "2.0",
-        method: "call",
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
         params: {
-          model: "pos.session",
-          method: "search_read",
+          model: 'pos.session',
+          method: 'search_read',
           args: [domain],
           kwargs: {
             fields: [
-              "id",
-              "name",
-              "state",
-              "user_id",
-              "start_at",
-              "stop_at",
-              "cash_register_balance_end",
-              "cash_register_balance_start",
-              "config_id", // Added to allow frontend to extract posConfigId
+              'id',
+              'name',
+              'state',
+              'user_id',
+              'start_at',
+              'stop_at',
+              'cash_register_balance_end',
+              'cash_register_balance_start',
+              'config_id',
             ],
             limit,
             offset,
-            order: "id desc",
+            order: 'id desc',
           },
         },
-      },
-      { headers: { "Content-Type": "application/json" } }
-    );
-    if (response.data.error) {
-      throw new Error("Odoo JSON-RPC error");
+        id: new Date().getTime(),
+      }),
+    });
+    const data = await response.json();
+    if (data.error) {
+      throw new Error('Odoo JSON-RPC error');
     }
-    return response.data.result || [];
+    return data.result || [];
   } catch (error) {
     throw error;
   }
@@ -1631,24 +1637,61 @@ export const createPosPaymentOdoo = async ({ orderId, payments, amount, journalI
 export const createPOSSesionOdoo = async ({ configId, userId }) => {
   try {
     if (!configId) throw new Error('configId is required');
+    const { baseUrl, headers } = await _buildOdooHeaders();
     const vals = {
       config_id: configId,
       user_id: userId || false,
     };
-    const response = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        model: 'pos.session',
-        method: 'create',
-        args: [vals],
-        kwargs: {},
-      },
-    }, { headers: { 'Content-Type': 'application/json' } });
-    if (response.data && response.data.error) {
-      return { error: response.data.error };
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: 'pos.session',
+          method: 'create',
+          args: [vals],
+          kwargs: {},
+        },
+        id: new Date().getTime(),
+      }),
+    });
+    const data = await response.json();
+    if (data.error) {
+      return { error: data.error };
     }
-    return { result: response.data.result };
+    return { result: data.result };
+  } catch (error) {
+    return { error };
+  }
+};
+
+// Close a POS session in Odoo
+export const closePOSSesionOdoo = async ({ sessionId }) => {
+  try {
+    if (!sessionId) throw new Error('sessionId is required');
+    const { baseUrl, headers } = await _buildOdooHeaders();
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: 'pos.session',
+          method: 'action_pos_session_closing_control',
+          args: [[sessionId]],
+          kwargs: {},
+        },
+        id: new Date().getTime(),
+      }),
+    });
+    const data = await response.json();
+    if (data.error) {
+      return { error: data.error };
+    }
+    return { result: data.result };
   } catch (error) {
     return { error };
   }
@@ -1658,14 +1701,10 @@ export const createPOSSesionOdoo = async ({ configId, userId }) => {
 
 export const fetchRestaurantTablesOdoo = async () => {
   try {
-    // Import the default Odoo DB name
-    const { DEFAULT_ODOO_DB, DEFAULT_ODOO_BASE_URL } = require('../config/odooConfig');
-    const response = await fetch(`${DEFAULT_ODOO_BASE_URL}web/dataset/call_kw`, {
+    const { baseUrl, headers } = await _buildOdooHeaders();
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Odoo-Database': DEFAULT_ODOO_DB,
-      },
+      headers,
       body: JSON.stringify({
         jsonrpc: '2.0',
         method: 'call',
@@ -1681,13 +1720,7 @@ export const fetchRestaurantTablesOdoo = async () => {
         id: new Date().getTime(),
       }),
     });
-    const rawText = await response.text();
-    let data;
-    try {
-      data = JSON.parse(rawText);
-    } catch (parseErr) {
-      return { error: parseErr, raw: rawText };
-    }
+    const data = await response.json();
     if (data.error) {
       return { error: data.error };
     }
@@ -1704,21 +1737,27 @@ export const fetchOpenOrdersByTable = async (tableId) => {
     // Exclude orders that are in final/closed states so only active/draft orders are returned
     // Include common closing states used across Odoo versions: done, cancel, paid, receipt, invoiced, posted
     const closedStates = ['done', 'cancel', 'paid', 'receipt', 'invoiced', 'posted'];
-    const response = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        model: 'pos.order',
-        method: 'search_read',
-        args: [[['table_id', '=', tableId], ['state', 'not in', closedStates]]],
-        kwargs: { fields: ['id', 'name', 'state', 'amount_total', 'table_id', 'lines'] },
-      },
-      id: new Date().getTime(),
-    }, { headers: { 'Content-Type': 'application/json' } });
-    if (response.data && response.data.error) {
-      return { error: response.data.error };
+    const { baseUrl, headers } = await _buildOdooHeaders();
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: 'pos.order',
+          method: 'search_read',
+          args: [[['table_id', '=', tableId], ['state', 'not in', closedStates]]],
+          kwargs: { fields: ['id', 'name', 'state', 'amount_total', 'table_id', 'lines'] },
+        },
+        id: new Date().getTime(),
+      }),
+    });
+    const data = await response.json();
+    if (data.error) {
+      return { error: data.error };
     }
-    return { result: response.data.result };
+    return { result: data.result };
   } catch (error) {
     return { error };
   }
@@ -1727,6 +1766,7 @@ export const fetchOpenOrdersByTable = async (tableId) => {
 // Create a draft pos.order assigned to a table
 export const createDraftPosOrderOdoo = async ({ sessionId, userId, tableId, partnerId = false, note = '', preset_id = 10, order_type = null } = {}) => {
   try {
+    const { baseUrl, headers } = await _buildOdooHeaders();
     const vals = {
       session_id: sessionId,
       user_id: userId || false,
@@ -1746,17 +1786,22 @@ export const createDraftPosOrderOdoo = async ({ sessionId, userId, tableId, part
         const hasField = await (async (field) => {
           try {
             if (!global.__pos_order_fields_cache) {
-              const fieldsResp = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
-                jsonrpc: '2.0',
-                method: 'call',
-                params: {
-                  model: 'pos.order',
-                  method: 'fields_get',
-                  args: [],
-                  kwargs: {},
-                },
-              }, { headers: { 'Content-Type': 'application/json' } });
-              global.__pos_order_fields_cache = fieldsResp.data && fieldsResp.data.result ? Object.keys(fieldsResp.data.result) : [];
+              const fieldsResp = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                  jsonrpc: '2.0',
+                  method: 'call',
+                  params: {
+                    model: 'pos.order',
+                    method: 'fields_get',
+                    args: [],
+                    kwargs: {},
+                  },
+                }),
+              });
+              const fieldsData = await fieldsResp.json();
+              global.__pos_order_fields_cache = fieldsData && fieldsData.result ? Object.keys(fieldsData.result) : [];
             }
             return Array.isArray(global.__pos_order_fields_cache) && global.__pos_order_fields_cache.includes(field);
           } catch (e) {
@@ -1768,22 +1813,27 @@ export const createDraftPosOrderOdoo = async ({ sessionId, userId, tableId, part
         // ignore
       }
     }
-    const response = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        model: 'pos.order',
-        method: 'create',
-        args: [vals],
-        kwargs: {},
-      },
-      id: new Date().getTime(),
-    }, { headers: { 'Content-Type': 'application/json' } });
-    if (response.data && response.data.error) {
-      return { error: response.data.error };
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: 'pos.order',
+          method: 'create',
+          args: [vals],
+          kwargs: {},
+        },
+        id: new Date().getTime(),
+      }),
+    });
+    const data = await response.json();
+    if (data.error) {
+      return { error: data.error };
     }
-    // response.data.result is the new record id
-    const createdId = response.data.result;
+    // data.result is the new record id
+    const createdId = data.result;
     // Try to fetch the full created order record for logging (non-blocking for callers)
     try {
       const full = await fetchPosOrderById(createdId);
@@ -1820,27 +1870,32 @@ export const addLineToOrderOdoo = async ({ orderId, productId, qty = 1, price_un
       lineVals.tax_ids = taxes.map(t => typeof t === 'number' ? t : (t.id || t[0] || null)).filter(Boolean);
     }
 
-    const rpcPayload = {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        model: 'pos.order',
-        method: 'write',
-        args: [[orderId], { lines: [[0, 0, lineVals]] }],
-        kwargs: {},
-      },
-      id: new Date().getTime(),
-    };
-    const response = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, rpcPayload, { headers: { 'Content-Type': 'application/json' } });
+    const { baseUrl, headers } = await _buildOdooHeaders();
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: 'pos.order',
+          method: 'write',
+          args: [[orderId], { lines: [[0, 0, lineVals]] }],
+          kwargs: {},
+        },
+        id: new Date().getTime(),
+      }),
+    });
+    const data = await response.json();
 
-    if (response.data && response.data.error) {
-      return { error: response.data.error };
+    if (data.error) {
+      return { error: data.error };
     }
 
     // After adding line, recalculate order totals
     await recomputePosOrderTotals(orderId);
 
-    return { result: response.data.result };
+    return { result: data.result };
   } catch (error) {
     return { error };
   }
@@ -1851,21 +1906,27 @@ export const fetchOpenOrders = async ({ sessionId = null, limit = 100 } = {}) =>
   try {
     const domain = [['state', '!=', 'done']];
     if (sessionId) domain.push(['session_id', '=', sessionId]);
-    const response = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        model: 'pos.order',
-        method: 'search_read',
-        args: [domain],
-        kwargs: { fields: ['id', 'name', 'state', 'amount_total', 'table_id', 'create_date'], limit, order: 'create_date desc' },
-      },
-      id: new Date().getTime(),
-    }, { headers: { 'Content-Type': 'application/json' } });
-    if (response.data && response.data.error) {
-      return { error: response.data.error };
+    const { baseUrl, headers } = await _buildOdooHeaders();
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: 'pos.order',
+          method: 'search_read',
+          args: [domain],
+          kwargs: { fields: ['id', 'name', 'state', 'amount_total', 'table_id', 'create_date'], limit, order: 'create_date desc' },
+        },
+        id: new Date().getTime(),
+      }),
+    });
+    const data = await response.json();
+    if (data.error) {
+      return { error: data.error };
     }
-    return { result: response.data.result };
+    return { result: data.result };
   } catch (error) {
     return { error };
   }
@@ -1878,22 +1939,28 @@ export const fetchOrders = async ({ sessionId = null, limit = 100, order = 'crea
     if (sessionId) domain.push(['session_id', '=', sessionId]);
     const useFields = Array.isArray(fields) && fields.length > 0 ? fields : ['id', 'name', 'state', 'amount_total', 'table_id', 'create_date'];
 
-    const response = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        model: 'pos.order',
-        method: 'search_read',
-        args: [domain],
-        kwargs: { fields: useFields, limit, order },
-      },
-      id: new Date().getTime(),
-    }, { headers: { 'Content-Type': 'application/json' } });
+    const { baseUrl, headers } = await _buildOdooHeaders();
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: 'pos.order',
+          method: 'search_read',
+          args: [domain],
+          kwargs: { fields: useFields, limit, order },
+        },
+        id: new Date().getTime(),
+      }),
+    });
+    const data = await response.json();
 
-    if (response.data && response.data.error) {
-      return { error: response.data.error };
+    if (data.error) {
+      return { error: data.error };
     }
-    return { result: response.data.result };
+    return { result: data.result };
   } catch (error) {
     return { error };
   }
@@ -1903,23 +1970,29 @@ export const fetchOrders = async ({ sessionId = null, limit = 100, order = 'crea
 export const fetchPosOrderById = async (orderId) => {
   try {
     if (!orderId) return { result: null };
-    const response = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        model: 'pos.order',
-        method: 'search_read',
-        args: [[['id', '=', orderId]]],
-        // include preset_id so clients can read the selected preset on the order
-        kwargs: { fields: ['id','name','state','amount_total','table_id','lines','create_date','user_id','partner_id','preset_id'] },
-      },
-      id: new Date().getTime(),
-    }, { headers: { 'Content-Type': 'application/json' } });
+    const { baseUrl, headers } = await _buildOdooHeaders();
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: 'pos.order',
+          method: 'search_read',
+          args: [[['id', '=', orderId]]],
+          // include preset_id so clients can read the selected preset on the order
+          kwargs: { fields: ['id','name','state','amount_total','table_id','lines','create_date','user_id','partner_id','preset_id'] },
+        },
+        id: new Date().getTime(),
+      }),
+    });
+    const data = await response.json();
 
-    if (response.data && response.data.error) {
-      return { error: response.data.error };
+    if (data.error) {
+      return { error: data.error };
     }
-    const result = (response.data.result && response.data.result[0]) || null;
+    const result = (data.result && data.result[0]) || null;
     return { result };
   } catch (error) {
     return { error };
@@ -1930,22 +2003,28 @@ export const fetchPosOrderById = async (orderId) => {
 export const fetchOrderLinesByIds = async (lineIds = []) => {
   try {
     if (!Array.isArray(lineIds) || lineIds.length === 0) return { result: [] };
-    const response = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        model: 'pos.order.line',
-        method: 'search_read',
-        args: [[['id', 'in', lineIds]]],
-        kwargs: { fields: ['id','product_id','qty','price_unit','price_subtotal','price_subtotal_incl','tax_ids','discount','name'] },
-      },
-      id: new Date().getTime(),
-    }, { headers: { 'Content-Type': 'application/json' } });
+    const { baseUrl, headers } = await _buildOdooHeaders();
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: 'pos.order.line',
+          method: 'search_read',
+          args: [[['id', 'in', lineIds]]],
+          kwargs: { fields: ['id','product_id','qty','price_unit','price_subtotal','price_subtotal_incl','tax_ids','discount','name','full_product_name'] },
+        },
+        id: new Date().getTime(),
+      }),
+    });
+    const data = await response.json();
 
-    if (response.data && response.data.error) {
-      return { error: response.data.error };
+    if (data.error) {
+      return { error: data.error };
     }
-    return { result: response.data.result || [] };
+    return { result: data.result || [] };
   } catch (error) {
     return { error };
   }
@@ -1954,22 +2033,28 @@ export const fetchOrderLinesByIds = async (lineIds = []) => {
 // Fetch pos.preset records (POS presets like Dine In / Takeaway)
 export const fetchPosPresets = async ({ limit = 200 } = {}) => {
   try {
-    const response = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        model: 'pos.preset',
-        method: 'search_read',
-        args: [[]],
-        kwargs: { fields: ['id','name','available_in_self','use_guest','pricelist_id','color','image_128'], limit, order: 'id asc' },
-      },
-      id: new Date().getTime(),
-    }, { headers: { 'Content-Type': 'application/json' } });
+    const { baseUrl, headers } = await _buildOdooHeaders();
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: 'pos.preset',
+          method: 'search_read',
+          args: [[]],
+          kwargs: { fields: ['id','name','available_in_self','use_guest','pricelist_id','color','image_128'], limit, order: 'id asc' },
+        },
+        id: new Date().getTime(),
+      }),
+    });
+    const data = await response.json();
 
-    if (response.data && response.data.error) {
-      return { error: response.data.error };
+    if (data.error) {
+      return { error: data.error };
     }
-    return { result: response.data.result };
+    return { result: data.result };
   } catch (error) {
     return { error };
   }
@@ -1979,59 +2064,74 @@ export const fetchPosPresets = async ({ limit = 200 } = {}) => {
 export const recomputePosOrderTotals = async (orderId) => {
   try {
     if (!orderId) throw new Error('orderId is required');
-    
+    const { baseUrl, headers } = await _buildOdooHeaders();
+
     // Fetch all order lines to calculate totals
-    const orderResponse = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        model: 'pos.order',
-        method: 'search_read',
-        args: [[['id', '=', orderId]]],
-        kwargs: { fields: ['id', 'lines'] },
-      },
-      id: new Date().getTime(),
-    }, { headers: { 'Content-Type': 'application/json' } });
-
-    if (orderResponse.data && orderResponse.data.error) {
-      return { error: orderResponse.data.error };
-    }
-
-    const order = orderResponse.data.result?.[0];
-    if (!order || !order.lines || order.lines.length === 0) {
-      // Update order with 0 total
-      await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
+    const orderResponse = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
         jsonrpc: '2.0',
         method: 'call',
         params: {
           model: 'pos.order',
-          method: 'write',
-          args: [[orderId], { amount_total: 0, amount_tax: 0, amount_paid: 0 }],
-          kwargs: {},
+          method: 'search_read',
+          args: [[['id', '=', orderId]]],
+          kwargs: { fields: ['id', 'lines'] },
         },
         id: new Date().getTime(),
-      }, { headers: { 'Content-Type': 'application/json' } });
+      }),
+    });
+    const orderData = await orderResponse.json();
+
+    if (orderData.error) {
+      return { error: orderData.error };
+    }
+
+    const order = orderData.result?.[0];
+    if (!order || !order.lines || order.lines.length === 0) {
+      // Update order with 0 total
+      await fetch(`${baseUrl}/web/dataset/call_kw`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'call',
+          params: {
+            model: 'pos.order',
+            method: 'write',
+            args: [[orderId], { amount_total: 0, amount_tax: 0, amount_paid: 0 }],
+            kwargs: {},
+          },
+          id: new Date().getTime(),
+        }),
+      });
       return { result: true };
     }
 
     // Fetch all line details
-    const linesResponse = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        model: 'pos.order.line',
-        method: 'search_read',
-        args: [[['id', 'in', order.lines]]],
-        kwargs: { fields: ['id', 'qty', 'price_unit', 'price_subtotal', 'price_subtotal_incl', 'discount'] },
-      },
-      id: new Date().getTime(),
-    }, { headers: { 'Content-Type': 'application/json' } });
+    const linesResponse = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: 'pos.order.line',
+          method: 'search_read',
+          args: [[['id', 'in', order.lines]]],
+          kwargs: { fields: ['id', 'qty', 'price_unit', 'price_subtotal', 'price_subtotal_incl', 'discount'] },
+        },
+        id: new Date().getTime(),
+      }),
+    });
+    const linesData = await linesResponse.json();
 
-    if (linesResponse.data && linesResponse.data.error) {
-      return { error: linesResponse.data.error };
+    if (linesData.error) {
+      return { error: linesData.error };
     }
 
-    const lines = linesResponse.data.result || [];
+    const lines = linesData.result || [];
     let totalAmount = 0;
     let totalTax = 0;
 
@@ -2040,37 +2140,42 @@ export const recomputePosOrderTotals = async (orderId) => {
       const qty = Number(line.qty) || 0;
       const priceUnit = Number(line.price_unit) || 0;
       const discount = Number(line.discount) || 0;
-      
+
       // Calculate line subtotal with discount
       let lineSubtotal = qty * priceUnit;
       if (discount > 0) {
         lineSubtotal = lineSubtotal * (1 - discount / 100);
       }
-      
+
       totalAmount += lineSubtotal;
       // For now, assume no separate tax (can be enhanced later)
       totalTax += 0;
     });
 
     // Update the order with calculated totals
-    const updateResponse = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        model: 'pos.order',
-        method: 'write',
-        args: [[orderId], { 
-          amount_total: totalAmount,
-          amount_tax: totalTax,
-          amount_paid: totalAmount  // Set amount_paid equal to amount_total for now
-        }],
-        kwargs: {},
-      },
-      id: new Date().getTime(),
-    }, { headers: { 'Content-Type': 'application/json' } });
+    const updateResponse = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: 'pos.order',
+          method: 'write',
+          args: [[orderId], {
+            amount_total: totalAmount,
+            amount_tax: totalTax,
+            amount_paid: totalAmount  // Set amount_paid equal to amount_total for now
+          }],
+          kwargs: {},
+        },
+        id: new Date().getTime(),
+      }),
+    });
+    const updateData = await updateResponse.json();
 
-    if (updateResponse.data && updateResponse.data.error) {
-      return { error: updateResponse.data.error };
+    if (updateData.error) {
+      return { error: updateData.error };
     }
 
     return { result: true };
@@ -2095,29 +2200,34 @@ export const updateOrderLineOdoo = async ({ lineId, qty, price_unit, name, order
     }
     if (typeof name !== 'undefined') vals.name = name;
 
-    const rpcPayload = {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        model: 'pos.order.line',
-        method: 'write',
-        args: [[lineId], vals],
-        kwargs: {},
-      },
-      id: new Date().getTime(),
-    };
-    const response = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, rpcPayload, { headers: { 'Content-Type': 'application/json' } });
+    const { baseUrl, headers } = await _buildOdooHeaders();
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: 'pos.order.line',
+          method: 'write',
+          args: [[lineId], vals],
+          kwargs: {},
+        },
+        id: new Date().getTime(),
+      }),
+    });
+    const data = await response.json();
 
-    if (response.data && response.data.error) {
-      return { error: response.data.error };
+    if (data.error) {
+      return { error: data.error };
     }
-    
+
     // After updating line, recalculate order totals if orderId provided
     if (orderId) {
       await recomputePosOrderTotals(orderId);
     }
-    
-    return { result: response.data.result };
+
+    return { result: data.result };
   } catch (error) {
     return { error };
   }
@@ -2127,29 +2237,34 @@ export const updateOrderLineOdoo = async ({ lineId, qty, price_unit, name, order
 export const removeOrderLineOdoo = async ({ lineId, orderId = null } = {}) => {
   try {
     if (!lineId) throw new Error('lineId is required');
-    const rpcPayload = {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        model: 'pos.order.line',
-        method: 'unlink',
-        args: [[lineId]],
-        kwargs: {},
-      },
-      id: new Date().getTime(),
-    };
-    const response = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, rpcPayload, { headers: { 'Content-Type': 'application/json' } });
+    const { baseUrl, headers } = await _buildOdooHeaders();
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: 'pos.order.line',
+          method: 'unlink',
+          args: [[lineId]],
+          kwargs: {},
+        },
+        id: new Date().getTime(),
+      }),
+    });
+    const data = await response.json();
 
-    if (response.data && response.data.error) {
-      return { error: response.data.error };
+    if (data.error) {
+      return { error: data.error };
     }
-    
+
     // After removing line, recalculate order totals if orderId provided
     if (orderId) {
       await recomputePosOrderTotals(orderId);
     }
-    
-    return { result: response.data.result };
+
+    return { result: data.result };
   } catch (error) {
     return { error };
   }
@@ -2159,22 +2274,28 @@ export const removeOrderLineOdoo = async ({ lineId, orderId = null } = {}) => {
 export const fetchFieldSelectionOdoo = async ({ model = '', field = '' } = {}) => {
   try {
     if (!model || !field) throw new Error('model and field are required');
-    const response = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        model,
-        method: 'fields_get',
-        args: [[field]],
-        kwargs: { attributes: ['selection'] },
-      },
-    }, { headers: { 'Content-Type': 'application/json' } });
+    const { baseUrl, headers } = await _buildOdooHeaders();
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model,
+          method: 'fields_get',
+          args: [[field]],
+          kwargs: { attributes: ['selection'] },
+        },
+      }),
+    });
+    const data = await response.json();
 
-    if (response.data && response.data.error) {
+    if (data.error) {
       return [];
     }
 
-    const fieldDef = response.data && response.data.result && response.data.result[field];
+    const fieldDef = data && data.result && data.result[field];
     if (!fieldDef) return [];
     return fieldDef.selection || [];
   } catch (error) {
@@ -2186,32 +2307,43 @@ export const fetchFieldSelectionOdoo = async ({ model = '', field = '' } = {}) =
 export const postInvoiceOdoo = async (invoiceId) => {
   try {
     if (!invoiceId) throw new Error('invoiceId is required');
-    const resp = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        model: 'account.move',
-        method: 'action_post',
-        args: [[invoiceId]],
-        kwargs: {},
-      },
-    }, { headers: { 'Content-Type': 'application/json' } });
+    const { baseUrl, headers } = await _buildOdooHeaders();
+    const resp = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: 'account.move',
+          method: 'action_post',
+          args: [[invoiceId]],
+          kwargs: {},
+        },
+      }),
+    });
+    const respData = await resp.json();
 
-    if (resp.data && resp.data.error) {
-      return { error: resp.data.error };
+    if (respData.error) {
+      return { error: respData.error };
     }
     // fetch posted invoice to get number/name
-    const info = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        model: 'account.move',
-        method: 'search_read',
-        args: [[['id', '=', invoiceId]]],
-        kwargs: { fields: ['id', 'name', 'state', 'payment_state', 'amount_total', 'amount_residual'] },
-      },
-    }, { headers: { 'Content-Type': 'application/json' } });
-    const meta = (info.data && info.data.result && info.data.result[0]) || null;
+    const info = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: 'account.move',
+          method: 'search_read',
+          args: [[['id', '=', invoiceId]]],
+          kwargs: { fields: ['id', 'name', 'state', 'payment_state', 'amount_total', 'amount_residual'] },
+        },
+      }),
+    });
+    const infoData = await info.json();
+    const meta = (infoData && infoData.result && infoData.result[0]) || null;
     return { result: meta };
   } catch (error) {
     return { error };

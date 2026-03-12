@@ -111,10 +111,7 @@ const SplashScreen = () => {
             }
         }
         if (fontsLoaded) {
-            const timeout = setTimeout(() => {
-                checkUserData()
-            }, 1000);
-            return () => clearTimeout(timeout);
+            checkUserData();
         }
     }, [fontsLoaded, navigation]);
 

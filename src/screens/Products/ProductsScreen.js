@@ -38,10 +38,7 @@ const ProductsScreen = ({ navigation, route }) => {
   const fetchRef = useRef(0);
 
   const handleBack = () => {
-    setBackLoading(true);
-    setTimeout(() => {
-      try { navigation.goBack(); } catch (e) { navigation.navigate('Home'); }
-    }, 80);
+    try { navigation.goBack(); } catch (e) { navigation.navigate('Home'); }
   };
 
   const doFetch = async (params) => {

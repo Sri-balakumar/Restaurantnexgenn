@@ -26,11 +26,23 @@ const useProductStore = create((set, get) => ({
     const exists = currentCart.some((p) => p.id === product.id);
     
     if (!exists) {
+      // Calculate subtotal for new products
+      const newQty = Number(product.quantity ?? product.qty ?? 1);
+      const newUnit = Number(product.price_unit ?? product.price ?? 0);
+      const newSubtotal = newQty * newUnit;
+      const productWithSubtotal = {
+        ...product,
+        quantity: newQty,
+        qty: newQty,
+        price_unit: newUnit,
+        price_subtotal: newSubtotal,
+        price_subtotal_incl: newSubtotal,
+      };
       return {
         ...state,
         cartItems: {
           ...state.cartItems,
-          [currentCustomerId]: [...currentCart, product]
+          [currentCustomerId]: [...currentCart, productWithSubtotal]
         }
       };
     } else {

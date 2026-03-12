@@ -30,13 +30,17 @@ function jsonrpcBody(params) {
 export async function fetchDatabases(baseUrl) {
   const base = normalizeUrl(baseUrl);
   const opts = { headers: JSONRPC_HEADERS, timeout: TIMEOUT_MS };
+  let lastError = null;
 
   // 1️⃣ Try custom module endpoint first
   try {
     const res = await axios.post(`${base}/device/databases`, jsonrpcBody({}), opts);
     const dbs = res.data?.result?.databases;
     if (Array.isArray(dbs) && dbs.length > 0) return dbs;
-  } catch (_) {}
+  } catch (err) {
+    console.warn('[fetchDatabases] /device/databases failed:', err.message);
+    lastError = err;
+  }
 
   // 2️⃣ Try Odoo's built-in /web/database/list (all Odoo versions)
   try {
@@ -46,16 +50,23 @@ export async function fetchDatabases(baseUrl) {
     const result = res.data?.result;
     if (Array.isArray(result) && result.length > 0) return result;
     if (Array.isArray(result?.databases) && result.databases.length > 0) return result.databases;
-  } catch (_) {}
+  } catch (err) {
+    console.warn('[fetchDatabases] /web/database/list POST failed:', err.message);
+    lastError = err;
+  }
 
   // 3️⃣ Try /web/database/list as a plain GET (some proxy setups)
   try {
     const res = await axios.get(`${base}/web/database/list`, { timeout: TIMEOUT_MS });
     if (Array.isArray(res.data)) return res.data;
     if (Array.isArray(res.data?.result)) return res.data.result;
-  } catch (_) {}
+  } catch (err) {
+    console.warn('[fetchDatabases] /web/database/list GET failed:', err.message);
+    lastError = err;
+  }
 
-  // All attempts failed — caller will fall back to manual DB entry
+  // All attempts failed — throw so caller can show the actual reason
+  if (lastError) throw lastError;
   return [];
 }
 

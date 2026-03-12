@@ -98,8 +98,18 @@ const DeviceSetupScreen = () => {
         setDatabases(dbs);
         setDbDropdownOpen(true);
       }
-    } catch (_) {
-      setError('serverUrl', 'Cannot reach server — check the URL and try again');
+    } catch (err) {
+      console.warn('[DeviceSetup] fetchDatabases error:', err.message);
+      const msg = err.message || '';
+      if (msg.includes('timeout')) {
+        setError('serverUrl', 'Connection timed out — is the server running?');
+      } else if (msg.includes('Network Error') || msg.includes('ECONNREFUSED')) {
+        setError('serverUrl', 'Cannot reach server — check the IP address and port');
+      } else if (msg.includes('404')) {
+        setError('serverUrl', 'Server found but database listing is disabled or module not installed');
+      } else {
+        setError('serverUrl', `Cannot fetch databases: ${msg}`);
+      }
     } finally {
       setLoadingDbs(false);
     }

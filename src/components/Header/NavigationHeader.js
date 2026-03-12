@@ -95,8 +95,6 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingVertical: 15,
         paddingHorizontal: 15,
-        // reserve space on the right so an absolutely positioned large logo
-        // doesn't overlap the header content (title / icons)
         paddingRight: 420,
     },
     goBackContainer: {
@@ -109,8 +107,6 @@ const styles = StyleSheet.create({
         paddingLeft: 10,
     },
     logoImage: {
-        // absolutely position the logo so increasing its visual size
-        // won't change header layout or push content down
         position: 'absolute',
         right: 12,
         top: -80,
