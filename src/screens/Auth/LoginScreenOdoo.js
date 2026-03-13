@@ -1,5 +1,5 @@
 // src/screens/Auth/LoginScreenOdoo.js
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Keyboard,
@@ -7,10 +7,10 @@ import {
   Image,
   TouchableWithoutFeedback,
   TouchableOpacity,
-  Alert,
   TextInput as RNTextInput,
   ActivityIndicator,
   ScrollView,
+  Switch,
 } from "react-native";
 import { COLORS, FONT_FAMILY } from "@constants/theme";
 import { LogBox } from "react-native";
@@ -23,9 +23,8 @@ import { SafeAreaView } from "@components/containers";
 import { useAuthStore } from "@stores/auth";
 import { showToastMessage } from "@components/Toast";
 import API_BASE_URL from "@api/config";
-import ODOO_DEFAULTS, { DEFAULT_ODOO_BASE_URL, DEFAULT_ODOO_DB } from "@api/config/odooConfig";
+import ODOO_DEFAULTS, { DEFAULT_ODOO_BASE_URL, DEFAULT_ODOO_DB, DEV_ODOO_USERNAME, DEV_ODOO_PASSWORD } from "@api/config/odooConfig";
 import { clearProductCache } from "@api/services/generalApi";
-import usePosLogo from "@hooks/usePosLogo";
 
 LogBox.ignoreAllLogs();
 
@@ -36,38 +35,15 @@ const LoginScreenOdoo = () => {
   const navigation = useNavigation();
   const setUser = useAuthStore((state) => state.login);
 
-  const logoSource = usePosLogo();
-
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [rememberMe, setRememberMe] = useState(false);
+  const [hasSavedCreds, setHasSavedCreds] = useState(false);
 
-  const handleChangeServer = () => {
-    Alert.alert(
-      'Change Server',
-      'This will clear the current device configuration and take you back to the setup screen.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reconfigure',
-          style: 'destructive',
-          onPress: async () => {
-            await AsyncStorage.multiRemove([
-              'device_uuid',
-              'device_server_url',
-              'device_db_name',
-              'device_registered',
-              'odoo_session_id',
-              'userData',
-            ]);
-            navigation.reset({ index: 0, routes: [{ name: 'DeviceSetup' }] });
-          },
-        },
-      ]
-    );
-  };
+  // Fields always start empty — user must toggle Autofill or type manually
 
   const validate = () => {
     Keyboard.dismiss();
@@ -102,6 +78,7 @@ const LoginScreenOdoo = () => {
       if (response.data.result && response.data.result.uid) {
         const userData = response.data.result;
         try { await AsyncStorage.setItem('odoo_db', dbNameUsed); } catch (_) {}
+        userData._pwd = password;
         await AsyncStorage.setItem("userData", JSON.stringify(userData));
 
         let sessionId = userData.session_id;
@@ -137,6 +114,13 @@ const LoginScreenOdoo = () => {
           }
         } catch (_) {}
 
+        // Save or clear credentials based on Autofill Credentials
+        if (rememberMe) {
+          await AsyncStorage.setItem('saved_credentials', JSON.stringify({ username, password }));
+        } else {
+          await AsyncStorage.removeItem('saved_credentials');
+        }
+
         setUser(userData);
         navigation.navigate("AppNavigator");
       } else {
@@ -157,13 +141,11 @@ const LoginScreenOdoo = () => {
         {/* ── Header with logo ── */}
         <View style={styles.header}>
           <View style={styles.logoGlow} />
-          {logoSource ? (
-            <Image
-              source={logoSource}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-          ) : null}
+          <Image
+            source={require('@assets/images/logo2.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
         </View>
 
         {/* ── White card ── */}
@@ -215,6 +197,155 @@ const LoginScreenOdoo = () => {
               {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
             </View>
 
+            {/* Autofill Credentials toggle */}
+            <View style={styles.rememberRow}>
+              <Text style={styles.rememberText}>Autofill Credentials</Text>
+              <Switch
+                value={rememberMe}
+                onValueChange={async (val) => {
+                  setRememberMe(val);
+                  if (val) {
+                    try {
+                      // 1. Get server URL and DB
+                      const deviceUrl = await AsyncStorage.getItem('device_server_url');
+                      const deviceDb = await AsyncStorage.getItem('device_db_name');
+                      let session = await AsyncStorage.getItem('odoo_session_id');
+                      const rawUrl = deviceUrl || DEFAULT_ODOO_BASE_URL;
+                      const baseUrl = rawUrl.trim().replace(/\/+$/, '');
+                      const finalUrl = baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`;
+                      const dbName = deviceDb || DEFAULT_ODOO_DB;
+
+                      // 2. If no session, try to get one by re-authenticating
+                      if (!session) {
+                        let authUser = null;
+                        let authPass = null;
+
+                        // Try saved credentials first
+                        const saved = await AsyncStorage.getItem('saved_credentials');
+                        if (saved) {
+                          const parsed = JSON.parse(saved);
+                          authUser = parsed.username;
+                          authPass = parsed.password;
+                        }
+
+                        // Try userData._pwd
+                        if (!authUser || !authPass) {
+                          const udRaw = await AsyncStorage.getItem('userData');
+                          if (udRaw) {
+                            const ud = JSON.parse(udRaw);
+                            if (ud?.login || ud?.username) authUser = authUser || ud.login || ud.username;
+                            if (ud?._pwd) authPass = authPass || ud._pwd;
+                          }
+                        }
+
+                        // Fallback to dev credentials (admin/admin)
+                        if (!authUser) authUser = DEV_ODOO_USERNAME;
+                        if (!authPass) authPass = DEV_ODOO_PASSWORD;
+
+                        // Authenticate to get a session
+                        try {
+                          const authRes = await axios.post(
+                            `${finalUrl}/web/session/authenticate`,
+                            {
+                              jsonrpc: '2.0', method: 'call',
+                              params: { db: dbName, login: authUser, password: authPass },
+                            },
+                            { headers: { 'Content-Type': 'application/json' }, timeout: 8000 }
+                          );
+                          const authData = authRes.data?.result;
+                          if (authData?.uid) {
+                            session = authData.session_id;
+                            if (!session) {
+                              const cookieHeader = authRes.headers['set-cookie'];
+                              if (cookieHeader) {
+                                const cookieStr = Array.isArray(cookieHeader) ? cookieHeader.join(';') : cookieHeader;
+                                const match = cookieStr.match(/session_id=([^;,\s]+)/);
+                                if (match) session = match[1];
+                              }
+                            }
+                            if (session) await AsyncStorage.setItem('odoo_session_id', session);
+                          }
+                        } catch (_) {}
+                      }
+
+                      // 3. Fetch username and password from Odoo DB
+                      let filledUser = false;
+                      let filledPass = false;
+
+                      if (session && finalUrl) {
+                        const headers = {
+                          'Content-Type': 'application/json',
+                          'Cookie': `session_id=${session}`,
+                          'X-Openerp-Session-Id': session,
+                          ...(dbName ? { 'X-Odoo-Database': dbName } : {}),
+                        };
+
+                        // Fetch last logged-in user from res.users
+                        try {
+                          const res = await axios.post(
+                            `${finalUrl}/web/dataset/call_kw`,
+                            {
+                              jsonrpc: '2.0', method: 'call',
+                              params: {
+                                model: 'res.users', method: 'search_read',
+                                args: [[]], kwargs: {
+                                  fields: ['login', 'name', 'password'],
+                                  limit: 1,
+                                  order: 'write_date desc',
+                                  context: {},
+                                },
+                              },
+                            },
+                            { headers, timeout: 8000 }
+                          );
+                          const user = res.data?.result?.[0];
+                          if (user?.login) {
+                            setUsername(user.login);
+                            filledUser = true;
+                          }
+                        } catch (_) {}
+                      }
+
+                      // 4. Fill password from saved credentials or userData
+                      if (!filledPass) {
+                        const saved = await AsyncStorage.getItem('saved_credentials');
+                        if (saved) {
+                          const { username: u, password: p } = JSON.parse(saved);
+                          if (!filledUser && u) { setUsername(u); filledUser = true; }
+                          if (p) { setPassword(p); filledPass = true; }
+                        }
+                      }
+                      if (!filledPass) {
+                        const udRaw = await AsyncStorage.getItem('userData');
+                        if (udRaw) {
+                          const ud = JSON.parse(udRaw);
+                          if (ud?._pwd) { setPassword(ud._pwd); filledPass = true; }
+                          if (!filledUser && (ud?.login || ud?.username)) {
+                            setUsername(ud.login || ud.username);
+                            filledUser = true;
+                          }
+                        }
+                      }
+
+                      if (filledUser || filledPass) {
+                        showToastMessage('Credentials filled from database');
+                      } else {
+                        showToastMessage('No credentials found. Please login manually first.');
+                      }
+                    } catch (_) {
+                      showToastMessage('Could not fetch credentials. Please login manually.');
+                    }
+                  } else {
+                    // Clear fields when toggled OFF
+                    setUsername('');
+                    setPassword('');
+                  }
+                }}
+                trackColor={{ false: '#ddd', true: ORANGE + '80' }}
+                thumbColor={rememberMe ? ORANGE : '#f4f3f4'}
+              />
+            </View>
+
             {/* Login button */}
             <TouchableOpacity
               style={[styles.loginBtn, loading && { opacity: 0.7 }]}
@@ -228,10 +359,6 @@ const LoginScreenOdoo = () => {
               }
             </TouchableOpacity>
 
-            {/* Change server */}
-            <TouchableOpacity onPress={handleChangeServer} style={styles.changeBtn}>
-              <Text style={styles.changeText}>⚙  Change Server / Reconfigure Device</Text>
-            </TouchableOpacity>
           </ScrollView>
         </View>
       </SafeAreaView>
@@ -330,6 +457,19 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginLeft: 4,
   },
+  rememberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    marginTop: 4,
+    paddingVertical: 4,
+  },
+  rememberText: {
+    fontSize: 14,
+    color: '#444',
+    fontFamily: FONT_FAMILY.urbanistBold,
+  },
   loginBtn: {
     backgroundColor: ORANGE,
     borderRadius: 12,
@@ -348,18 +488,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: FONT_FAMILY.urbanistBold,
     letterSpacing: 0.5,
-  },
-  changeBtn: {
-    alignItems: 'center',
-    marginTop: 20,
-    paddingVertical: 6,
-  },
-  changeText: {
-    fontSize: 13,
-    color: NAVY,
-    fontFamily: FONT_FAMILY.urbanistBold,
-    textDecorationLine: 'underline',
-    opacity: 0.7,
   },
 });
 

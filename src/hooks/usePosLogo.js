@@ -64,7 +64,8 @@ export default function usePosLogo() {
             } catch (_) {}
           }
 
-          // Step 2: fetch pos_logo
+          // Step 2: fetch pos_logo and company_id from pos.config
+          let companyId = null;
           if (configId && !cancelled) {
             try {
               const cfgLogoRes = await axios.post(
@@ -74,12 +75,16 @@ export default function usePosLogo() {
                   params: {
                     model: 'pos.config', method: 'search_read',
                     args: [[['id', '=', configId]]],
-                    kwargs: { fields: ['pos_logo'], limit: 1, context: {} },
+                    kwargs: { fields: ['pos_logo', 'company_id'], limit: 1, context: {} },
                   },
                 },
                 { headers, timeout: 10000 }
               );
-              const logoB64 = cfgLogoRes.data?.result?.[0]?.pos_logo;
+              const cfg = cfgLogoRes.data?.result?.[0];
+              if (cfg?.company_id) {
+                companyId = Array.isArray(cfg.company_id) ? cfg.company_id[0] : cfg.company_id;
+              }
+              const logoB64 = cfg?.pos_logo;
               if (typeof logoB64 === 'string' && logoB64.length > 20) {
                 const uri = logoB64.startsWith('data:') ? logoB64 : `data:image/png;base64,${logoB64}`;
                 if (!cancelled) setLogoSource({ uri });
@@ -89,9 +94,51 @@ export default function usePosLogo() {
               console.warn('[usePosLogo] pos_logo fetch failed:', e.message);
             }
           }
+
+          // Step 3: fetch company logo as base64 from res.company
+          if (!cancelled) {
+            try {
+              // If we don't have companyId yet, get the user's company
+              if (!companyId) {
+                const compRes = await axios.post(
+                  `${base}/web/dataset/call_kw`,
+                  {
+                    jsonrpc: '2.0', method: 'call',
+                    params: {
+                      model: 'res.company', method: 'search_read',
+                      args: [[]], kwargs: { fields: ['id'], limit: 1, context: {} },
+                    },
+                  },
+                  { headers, timeout: 10000 }
+                );
+                companyId = compRes.data?.result?.[0]?.id;
+              }
+              if (companyId) {
+                const logoRes = await axios.post(
+                  `${base}/web/dataset/call_kw`,
+                  {
+                    jsonrpc: '2.0', method: 'call',
+                    params: {
+                      model: 'res.company', method: 'read',
+                      args: [[companyId], ['logo']],
+                      kwargs: { context: {} },
+                    },
+                  },
+                  { headers, timeout: 10000 }
+                );
+                const compLogo = logoRes.data?.result?.[0]?.logo;
+                if (typeof compLogo === 'string' && compLogo.length > 20) {
+                  const uri = compLogo.startsWith('data:') ? compLogo : `data:image/png;base64,${compLogo}`;
+                  if (!cancelled) { setLogoSource({ uri }); return; }
+                }
+              }
+            } catch (e) {
+              console.warn('[usePosLogo] company logo fetch failed:', e.message);
+            }
+          }
         }
 
-        // Fallback: company logo URL (works without auth in Odoo)
+        // Fallback: company logo URL with company ID
         if (!cancelled) {
           const source = { uri: `${base}/web/binary/company_logo` };
           if (session) {

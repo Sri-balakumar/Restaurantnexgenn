@@ -230,15 +230,11 @@ const DeviceSetupScreen = () => {
       } else if (err.message?.includes('Network Error') || err.message?.includes('ECONNREFUSED')) {
         showToastMessage('Cannot reach server. Check the URL and ensure Odoo is running.');
       } else if (err.message?.includes('404') || err.response?.status === 404) {
-        // Device endpoint not available — DB loaded fine so server is valid, auto-continue
-        try {
-          await AsyncStorage.multiSet([
-            ['device_server_url', base],
-            ['device_db_name', selectedDb],
-            ['device_registered', 'skipped'],
-          ]);
-          navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-        } catch (_) {}
+        Alert.alert(
+          'Device Module Not Installed',
+          'The device registration module is not installed on this Odoo server.\n\nPlease ask your admin to install the "device_login_config" module in Odoo before configuring this device.',
+          [{ text: 'OK' }]
+        );
       } else {
         showToastMessage(`Error: ${err.message}`);
       }
@@ -383,37 +379,6 @@ const DeviceSetupScreen = () => {
               You only need to do this once per device.
             </Text>
 
-            <TouchableOpacity
-              style={styles.skipBtn}
-              onPress={() => {
-                if (!serverUrl.trim() || !selectedDb) {
-                  showToastMessage('Enter server URL and select a database first');
-                  return;
-                }
-                const base = normalizeUrl(serverUrl);
-                Alert.alert(
-                  'Skip Registration',
-                  'Save this server and go directly to login?\n\nUse this if your server doesn\'t have the device module or you just changed WiFi.',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Skip & Login',
-                      onPress: async () => {
-                        await AsyncStorage.multiSet([
-                          ['device_server_url', base],
-                          ['device_db_name', selectedDb],
-                          ['device_registered', 'skipped'],
-                        ]);
-                        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-                      },
-                    },
-                  ]
-                );
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.skipBtnText}>Skip registration and go to login →</Text>
-            </TouchableOpacity>
           </View>
         </ScrollView>
       </SafeAreaView>

@@ -2,7 +2,7 @@
 
 // 🔹 Put your Odoo server URL here ONE time
 // Local Odoo development server (updated to your machine)
-const ODOO_BASE_URL = "http://192.168.29.43:8079/";
+const ODOO_BASE_URL = "";
 
 
 

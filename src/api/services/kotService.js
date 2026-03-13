@@ -1,169 +1,237 @@
 /**
- * KOT Service for React Native + Odoo
- * Uses existing Odoo session from app (no double login)
+ * KOT Service for React Native APK + Odoo
+ *
+ * Uses session-based auth via /web/dataset/call_kw (same as rest of the app).
+ * Reads server URL, session ID, and DB from AsyncStorage.
+ *
+ * ARCHITECTURE:
+ *   APK (React Native)  ──session auth──>  Odoo Server  ──TCP/ESC-POS──>  KOT Printer
  */
 
-let CONFIG = {
-  odooUrl: '',
-  database: '',
-  uid: null,
-  password: '',
-  printerIp: '',
-  printerPort: 9100,
-};
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 
-/**
- * Setup configuration and session info
- * @param {object} config - { odooUrl, database, uid, password, printerIp, printerPort }
- */
-export function setup(config) {
-  CONFIG = { ...CONFIG, ...config };
+// ── Read connection info from AsyncStorage ───────────────────
+
+async function getConnectionInfo() {
+  const pairs = await AsyncStorage.multiGet([
+    'device_server_url',
+    'odoo_session_id',
+    'userData',
+    'device_db_name',
+    'odoo_db',
+  ]);
+
+  const serverUrl = pairs[0][1];
+  let session = pairs[1][1];
+  const userData = pairs[2][1] ? JSON.parse(pairs[2][1]) : null;
+  const dbName = pairs[3][1] || pairs[4][1];
+
+  // Fallback: session might be inside userData
+  if (!session && userData?.session_id) {
+    session = userData.session_id;
+  }
+
+  if (!serverUrl) {
+    throw new Error('No server URL configured. Please login again.');
+  }
+  if (!session) {
+    throw new Error('No session found. Please login again.');
+  }
+
+  const base = serverUrl.replace(/\/+$/, '');
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Cookie': `session_id=${session}`,
+    'X-Openerp-Session-Id': session,
+  };
+  if (dbName) headers['X-Odoo-Database'] = dbName;
+
+  return { base, headers, session, dbName, uid: userData?.uid };
 }
 
+// ── Odoo RPC call via session ────────────────────────────────
+
+async function callKw(model, method, args = [[]], kwargs = {}) {
+  const { base, headers } = await getConnectionInfo();
+
+  const url = `${base}/web/dataset/call_kw`;
+  const payload = {
+    jsonrpc: '2.0',
+    method: 'call',
+    params: {
+      model,
+      method,
+      args,
+      kwargs: { ...kwargs, context: kwargs.context || {} },
+    },
+  };
+
+  console.log(`[KOT] POST ${url}`);
+  console.log('[KOT] model:', model, 'method:', method);
+  console.log('[KOT] payload:', JSON.stringify(payload, null, 2));
+
+  const response = await axios.post(url, payload, {
+    headers,
+    timeout: 15000,
+  });
+
+  console.log('[KOT] response status:', response.status);
+
+  if (response.data?.error) {
+    const msg =
+      response.data.error.data?.message ||
+      response.data.error.message ||
+      'Odoo RPC Error';
+    console.error('[KOT] Odoo error:', msg);
+    throw new Error(msg);
+  }
+
+  return response.data?.result;
+}
+
+// ── Print KOT ────────────────────────────────────────────────
+
 /**
- * PRINT KOT - Direct method
- * @param {object} kotData - KOT data to print
+ * Send KOT to Odoo for printing. Odoo handles the printer.
+ *
+ * @param {object}  kotData
+ * @param {string}  kotData.table_name    - "T 3"
+ * @param {string}  kotData.order_name    - "Order 00012"
+ * @param {number}  [kotData.order_id]    - Odoo pos.order ID
+ * @param {string}  kotData.cashier       - Waiter / server name
+ * @param {string}  [kotData.order_type]  - "Dine In" | "Takeout" | "Delivery"
+ * @param {number}  [kotData.guest_count] - Number of guests
+ * @param {string}  [kotData.print_type]  - "NEW" | "ADDON" | "FULL"
+ * @param {Array<{name:string, qty:number, note?:string}>} kotData.items
+ * @returns {Promise<{success: boolean, message?: string, error?: string}>}
  */
 export async function printKot(kotData) {
-  if (!CONFIG.uid) {
-    return { success: false, error: 'Not logged in' };
-  }
-
-  const data = {
-    printer_ip: CONFIG.printerIp,
-    printer_port: CONFIG.printerPort,
-    table_name: kotData.table_name || '',
-    order_name: kotData.order_name || '',
-    cashier: kotData.cashier || '',
-    items: kotData.items || [],
-  };
-    // Include order_type if provided (raw and a human-friendly label)
-    if (kotData.order_type) {
-      const ot = String(kotData.order_type || '');
-      data.order_type = ot;
-      // map common tokens to a friendly label for printers
-      if (ot === 'TAKEAWAY' || ot === 'TAKEOUT') data.order_type_label = 'Takeout';
-      else if (ot === 'DINEIN' || ot === 'DINE_IN') data.order_type_label = 'Dine In';
-      else data.order_type_label = ot.charAt(0).toUpperCase() + ot.slice(1).toLowerCase();
-    }
-
   try {
-    const response = await fetch(`${CONFIG.odooUrl}/jsonrpc`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'call',
-        params: {
-          service: 'object',
-          method: 'execute_kw',
-          args: [
-            CONFIG.database,
-            CONFIG.uid,
-            CONFIG.password,
-            'pos.kot.print',
-            'print_kot',
-            [data],
-            {},
-          ],
-        },
-        id: 2,
-      }),
-    });
+    const data = {
+      table_name: kotData.table_name || '',
+      order_name: kotData.order_name || '',
+      order_number:
+        kotData.order_name || (kotData.order_id ? String(kotData.order_id) : ''),
+      cashier: kotData.cashier || '',
+      waiter: kotData.cashier || '',
+      order_type: kotData.order_type || 'Dine In',
+      guest_count: kotData.guest_count || 0,
+      print_type: kotData.print_type || 'NEW',
+      items: (kotData.items || []).map((it) => ({
+        name: it.name || 'Item',
+        qty: Number(it.qty || 1),
+        note: it.note || '',
+      })),
+    };
 
-    const result = await response.json();
-    if (result.error) {
-      return { success: false, error: result.error.data?.message || 'API Error' };
-    }
-    return result.result;
+    console.log('[KOT] printKot data:', JSON.stringify(data, null, 2));
+
+    const result = await callKw('pos.kot.print', 'print_kot', [data]);
+    return result || { success: true };
   } catch (error) {
+    console.error('[KOT] printKot error:', error.message);
     return { success: false, error: error.message };
   }
 }
 
-/**
- * Get tables list
- */
+// ── Fetch Data from Odoo ─────────────────────────────────────
+
 export async function getTables() {
-  if (!CONFIG.uid) {
-    return { success: false, error: 'Not logged in' };
-  }
   try {
-    const response = await fetch(`${CONFIG.odooUrl}/jsonrpc`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'call',
-        params: {
-          service: 'object',
-          method: 'execute_kw',
-          args: [
-            CONFIG.database,
-            CONFIG.uid,
-            CONFIG.password,
-            'restaurant.table',
-            'search_read',
-            [[]],
-            { fields: ['id', 'name', 'seats'] },
-          ],
-        },
-        id: 3,
-      }),
-    });
-    const data = await response.json();
-    if (data.error) {
-      return { success: false, error: data.error.data?.message || 'API Error' };
-    }
-    return { success: true, tables: data.result || [] };
+    const tables = await callKw(
+      'restaurant.table',
+      'search_read',
+      [[]],
+      { fields: ['id', 'name', 'seats', 'floor_id', 'active'] },
+    );
+    return { success: true, tables: tables || [] };
   } catch (error) {
     return { success: false, error: error.message };
   }
 }
 
-/**
- * Get products list
- */
-export async function getProducts() {
-  if (!CONFIG.uid) {
-    return { success: false, error: 'Not logged in' };
-  }
+export async function getProducts(limit = 200) {
   try {
-    const response = await fetch(`${CONFIG.odooUrl}/jsonrpc`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'call',
-        params: {
-          service: 'object',
-          method: 'execute_kw',
-          args: [
-            CONFIG.database,
-            CONFIG.uid,
-            CONFIG.password,
-            'product.product',
-            'search_read',
-            [[['available_in_pos', '=', true]]],
-            { fields: ['id', 'name', 'display_name', 'list_price'], limit: 100 },
-          ],
-        },
-        id: 4,
-      }),
-    });
-    const data = await response.json();
-    if (data.error) {
-      return { success: false, error: data.error.data?.message || 'API Error' };
-    }
-    return { success: true, products: data.result || [] };
+    const products = await callKw(
+      'product.product',
+      'search_read',
+      [[['available_in_pos', '=', true]]],
+      {
+        fields: ['id', 'name', 'display_name', 'list_price', 'categ_id', 'pos_categ_ids'],
+        limit,
+      },
+    );
+    return { success: true, products: products || [] };
   } catch (error) {
     return { success: false, error: error.message };
   }
 }
+
+export async function fetchOrder(orderId) {
+  try {
+    const orders = await callKw(
+      'pos.order',
+      'read',
+      [[orderId]],
+      {
+        fields: [
+          'id', 'name', 'lines', 'state', 'table_id',
+          'partner_id', 'amount_total',
+        ],
+      },
+    );
+    const order = Array.isArray(orders) && orders.length ? orders[0] : null;
+    if (!order) return { success: false, error: 'Order not found' };
+    return { success: true, order };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function fetchOrderLines(lineIds) {
+  try {
+    if (!lineIds || !lineIds.length) return { success: true, lines: [] };
+    const lines = await callKw(
+      'pos.order.line',
+      'read',
+      [lineIds],
+      {
+        fields: ['id', 'product_id', 'qty', 'price_unit', 'full_product_name', 'note'],
+      },
+    );
+    return { success: true, lines: lines || [] };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function addLineToOrder({ orderId, productId, qty, price_unit }) {
+  try {
+    const lineId = await callKw(
+      'pos.order.line',
+      'create',
+      [[{
+        order_id: orderId,
+        product_id: productId,
+        qty,
+        price_unit,
+      }]],
+    );
+    return { success: true, lineId };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// ── Default Export ────────────────────────────────────────────
 
 export default {
-  setup,
   printKot,
   getTables,
   getProducts,
+  fetchOrder,
+  fetchOrderLines,
+  addLineToOrder,
 };
