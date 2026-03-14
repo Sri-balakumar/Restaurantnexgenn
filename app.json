@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Ahaa-Restaurant",
+    "name": "NEXX GENN Restaurant",
     "slug": "Ahaa-restaurant",
-    "version": "1.0.8",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -12,7 +12,7 @@
       "backgroundColor": "#ffffff"
     },
     "assetBundlePatterns": [
-      "**/*"
+      "assets/*"
     ],
     "ios": {
       "supportsTablet": true,
@@ -75,9 +75,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "c8ef63cc-d023-4ba1-a916-05b4b6838810"
+        "projectId": "58c90cb6-e222-4e8e-b9c5-08b43ea68101"
       }
     },
-    "owner": "sajin2004"
+    "owner": "sribalakumarr"
   }
 }

@@ -43,7 +43,32 @@ const LoginScreenOdoo = () => {
   const [rememberMe, setRememberMe] = useState(false);
   const [hasSavedCreds, setHasSavedCreds] = useState(false);
 
-  // Fields always start empty — user must toggle Autofill or type manually
+  // Restore toggle state and auto-fill credentials on mount
+  useEffect(() => {
+    async function restoreAutofill() {
+      try {
+        const toggleState = await AsyncStorage.getItem('autofill_enabled');
+        if (toggleState === 'true') {
+          setRememberMe(true);
+          // Fill credentials from saved sources
+          const saved = await AsyncStorage.getItem('saved_credentials');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed.username) setUsername(parsed.username);
+            if (parsed.password) setPassword(parsed.password);
+            return;
+          }
+          const udRaw = await AsyncStorage.getItem('userData');
+          if (udRaw) {
+            const ud = JSON.parse(udRaw);
+            if (ud?.login || ud?.username) setUsername(ud.login || ud.username);
+            if (ud?._pwd) setPassword(ud._pwd);
+          }
+        }
+      } catch (_) {}
+    }
+    restoreAutofill();
+  }, []);
 
   const validate = () => {
     Keyboard.dismiss();
@@ -114,12 +139,10 @@ const LoginScreenOdoo = () => {
           }
         } catch (_) {}
 
-        // Save or clear credentials based on Autofill Credentials
-        if (rememberMe) {
-          await AsyncStorage.setItem('saved_credentials', JSON.stringify({ username, password }));
-        } else {
-          await AsyncStorage.removeItem('saved_credentials');
-        }
+        // Always save credentials so Autofill can use them next time
+        await AsyncStorage.setItem('saved_credentials', JSON.stringify({ username, password }));
+        // Persist toggle preference
+        await AsyncStorage.setItem('autofill_enabled', JSON.stringify(rememberMe));
 
         setUser(userData);
         navigation.navigate("AppNavigator");
@@ -215,34 +238,33 @@ const LoginScreenOdoo = () => {
                       const finalUrl = baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`;
                       const dbName = deviceDb || DEFAULT_ODOO_DB;
 
-                      // 2. If no session, try to get one by re-authenticating
+                      // 2. Collect credentials from all available sources
+                      let foundUser = null;
+                      let foundPass = null;
+
+                      // Source A: saved_credentials (from a previous login with toggle ON)
+                      const saved = await AsyncStorage.getItem('saved_credentials');
+                      if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (parsed.username) foundUser = parsed.username;
+                        if (parsed.password) foundPass = parsed.password;
+                      }
+
+                      // Source B: userData from last login (always saved on login)
+                      if (!foundUser || !foundPass) {
+                        const udRaw = await AsyncStorage.getItem('userData');
+                        if (udRaw) {
+                          const ud = JSON.parse(udRaw);
+                          if (!foundUser && (ud?.login || ud?.username)) foundUser = ud.login || ud.username;
+                          if (!foundPass && ud?._pwd) foundPass = ud._pwd;
+                        }
+                      }
+
+                      // 3. If no session, try to get one by re-authenticating
                       if (!session) {
-                        let authUser = null;
-                        let authPass = null;
+                        const authUser = foundUser || DEV_ODOO_USERNAME;
+                        const authPass = foundPass || DEV_ODOO_PASSWORD;
 
-                        // Try saved credentials first
-                        const saved = await AsyncStorage.getItem('saved_credentials');
-                        if (saved) {
-                          const parsed = JSON.parse(saved);
-                          authUser = parsed.username;
-                          authPass = parsed.password;
-                        }
-
-                        // Try userData._pwd
-                        if (!authUser || !authPass) {
-                          const udRaw = await AsyncStorage.getItem('userData');
-                          if (udRaw) {
-                            const ud = JSON.parse(udRaw);
-                            if (ud?.login || ud?.username) authUser = authUser || ud.login || ud.username;
-                            if (ud?._pwd) authPass = authPass || ud._pwd;
-                          }
-                        }
-
-                        // Fallback to dev credentials (admin/admin)
-                        if (!authUser) authUser = DEV_ODOO_USERNAME;
-                        if (!authPass) authPass = DEV_ODOO_PASSWORD;
-
-                        // Authenticate to get a session
                         try {
                           const authRes = await axios.post(
                             `${finalUrl}/web/session/authenticate`,
@@ -268,7 +290,7 @@ const LoginScreenOdoo = () => {
                         } catch (_) {}
                       }
 
-                      // 3. Fetch username and password from Odoo DB
+                      // 4. Fetch username from Odoo DB (more accurate than saved data)
                       let filledUser = false;
                       let filledPass = false;
 
@@ -280,7 +302,6 @@ const LoginScreenOdoo = () => {
                           ...(dbName ? { 'X-Odoo-Database': dbName } : {}),
                         };
 
-                        // Fetch last logged-in user from res.users
                         try {
                           const res = await axios.post(
                             `${finalUrl}/web/dataset/call_kw`,
@@ -289,7 +310,7 @@ const LoginScreenOdoo = () => {
                               params: {
                                 model: 'res.users', method: 'search_read',
                                 args: [[]], kwargs: {
-                                  fields: ['login', 'name', 'password'],
+                                  fields: ['login', 'name'],
                                   limit: 1,
                                   order: 'write_date desc',
                                   context: {},
@@ -306,31 +327,22 @@ const LoginScreenOdoo = () => {
                         } catch (_) {}
                       }
 
-                      // 4. Fill password from saved credentials or userData
-                      if (!filledPass) {
-                        const saved = await AsyncStorage.getItem('saved_credentials');
-                        if (saved) {
-                          const { username: u, password: p } = JSON.parse(saved);
-                          if (!filledUser && u) { setUsername(u); filledUser = true; }
-                          if (p) { setPassword(p); filledPass = true; }
-                        }
+                      // 5. Fill username from saved sources if API didn't provide it
+                      if (!filledUser && foundUser) {
+                        setUsername(foundUser);
+                        filledUser = true;
                       }
-                      if (!filledPass) {
-                        const udRaw = await AsyncStorage.getItem('userData');
-                        if (udRaw) {
-                          const ud = JSON.parse(udRaw);
-                          if (ud?._pwd) { setPassword(ud._pwd); filledPass = true; }
-                          if (!filledUser && (ud?.login || ud?.username)) {
-                            setUsername(ud.login || ud.username);
-                            filledUser = true;
-                          }
-                        }
+
+                      // 6. Fill password from saved sources
+                      if (foundPass) {
+                        setPassword(foundPass);
+                        filledPass = true;
                       }
 
                       if (filledUser || filledPass) {
-                        showToastMessage('Credentials filled from database');
+                        showToastMessage('Credentials filled successfully');
                       } else {
-                        showToastMessage('No credentials found. Please login manually first.');
+                        showToastMessage('No saved credentials found. Please login once first.');
                       }
                     } catch (_) {
                       showToastMessage('Could not fetch credentials. Please login manually.');
@@ -339,6 +351,7 @@ const LoginScreenOdoo = () => {
                     // Clear fields when toggled OFF
                     setUsername('');
                     setPassword('');
+                    await AsyncStorage.setItem('autofill_enabled', 'false');
                   }
                 }}
                 trackColor={{ false: '#ddd', true: ORANGE + '80' }}

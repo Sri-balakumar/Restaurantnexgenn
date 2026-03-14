@@ -151,6 +151,59 @@ export async function registerFromScan({ baseUrl, databaseName, deviceId, device
 }
 
 /**
+ * Authenticate with Odoo and return session info.
+ * @param {string} baseUrl
+ * @param {string} db
+ * @param {string} login
+ * @param {string} password
+ * @returns {Promise<{ uid: number|false, session_id?: string }>}
+ */
+export async function authenticate(baseUrl, db, login, password) {
+  const base = normalizeUrl(baseUrl);
+  const res = await axios.post(
+    `${base}/web/session/authenticate`,
+    jsonrpcBody({ db, login, password }),
+    { headers: JSONRPC_HEADERS, timeout: TIMEOUT_MS }
+  );
+  return res.data?.result || { uid: false };
+}
+
+/**
+ * Check if a module is installed in the given Odoo database.
+ * Requires an authenticated session (call authenticate first).
+ * @param {string} baseUrl
+ * @param {string} db
+ * @param {number} uid
+ * @param {string} password
+ * @param {string} moduleName
+ * @returns {Promise<boolean>}
+ */
+export async function isModuleInstalled(baseUrl, db, uid, password, moduleName) {
+  const base = normalizeUrl(baseUrl);
+  const res = await axios.post(
+    `${base}/jsonrpc`,
+    {
+      jsonrpc: '2.0',
+      method: 'call',
+      params: {
+        service: 'object',
+        method: 'execute_kw',
+        args: [
+          db,
+          uid,
+          password,
+          'ir.module.module',
+          'search_count',
+          [[['name', '=', moduleName], ['state', '=', 'installed']]],
+        ],
+      },
+    },
+    { headers: JSONRPC_HEADERS, timeout: TIMEOUT_MS }
+  );
+  return (res.data?.result || 0) > 0;
+}
+
+/**
  * Step 1 — Check if this device UUID is pre-registered in Odoo.
  * Admin must have created a device.registry record with mac_address = deviceUUID.
  *

@@ -42,6 +42,8 @@ const DeviceSetupScreen = () => {
   const [serverUrl, setServerUrl] = useState('');
   const [databases, setDatabases] = useState([]);
   const [selectedDb, setSelectedDb] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [deviceUUID, setDeviceUUID] = useState('');
   const [loadingDbs, setLoadingDbs] = useState(false);
   const [loadingConfigure, setLoadingConfigure] = useState(false);
@@ -115,7 +117,7 @@ const DeviceSetupScreen = () => {
     }
   };
 
-  // ── Configure Device (lookup → activate) ────────────────────────────────
+  // ── Configure Device (authenticate → module check → lookup → activate) ──
   const handleConfigure = async () => {
     Keyboard.dismiss();
     let valid = true;
@@ -127,16 +129,43 @@ const DeviceSetupScreen = () => {
       setError('db', 'Select a database');
       valid = false;
     }
+    if (!username.trim()) {
+      setError('username', 'Username is required');
+      valid = false;
+    }
+    if (!password.trim()) {
+      setError('password', 'Password is required');
+      valid = false;
+    }
     if (!valid) return;
 
     const base = normalizeUrl(serverUrl);
     setLoadingConfigure(true);
     try {
-      // Step 1 — lookup
+      // Step 1 — Authenticate
+      const session = await deviceApi.authenticate(base, selectedDb, username.trim(), password);
+      if (!session.uid || session.uid === false) {
+        setError('username', 'Invalid username or password');
+        return;
+      }
+
+      // Step 2 — Check if device_login_config module is installed
+      const moduleInstalled = await deviceApi.isModuleInstalled(
+        base, selectedDb, session.uid, password, 'device_login_config'
+      );
+      if (!moduleInstalled) {
+        Alert.alert(
+          'Device Module Not Installed',
+          'The "device_login_config" module is not installed on this Odoo server.\n\nPlease ask your admin to install it before configuring this device.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Step 3 — Lookup device
       const lookup = await deviceApi.lookupDevice(base, deviceUUID, selectedDb);
 
       if (lookup.status === 'not_found') {
-        // Check if device was previously registered (e.g. WiFi/IP changed)
         const prevRegistered = await AsyncStorage.getItem('device_registered');
         if (prevRegistered === 'true' || prevRegistered === 'skipped') {
           Alert.alert(
@@ -203,7 +232,7 @@ const DeviceSetupScreen = () => {
         return;
       }
 
-      // status === 'found' — Step 2: activate
+      // Step 4 — Activate
       const activate = await deviceApi.activateDevice(base, deviceUUID, selectedDb);
 
       if (activate.status === 'activated' || activate.status === 'already_active') {
@@ -221,22 +250,27 @@ const DeviceSetupScreen = () => {
         return;
       }
 
-      // not_found or error from activate
       showToastMessage(activate.message || 'Activation failed. Try again.');
 
     } catch (err) {
-      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+      const msg = err.message || '';
+      const isNetworkError = !err.response && (
+        err.code === 'ECONNABORTED' ||
+        err.code === 'ECONNREFUSED' ||
+        err.code === 'ENOTFOUND' ||
+        err.code === 'ERR_NETWORK' ||
+        msg.includes('timeout') ||
+        msg.includes('Network Error') ||
+        msg.includes('ECONNREFUSED') ||
+        msg.includes('Network request failed')
+      );
+
+      if (msg.includes('timeout') || err.code === 'ECONNABORTED') {
         showToastMessage('Connection timed out. Check your network and server URL.');
-      } else if (err.message?.includes('Network Error') || err.message?.includes('ECONNREFUSED')) {
+      } else if (isNetworkError) {
         showToastMessage('Cannot reach server. Check the URL and ensure Odoo is running.');
-      } else if (err.message?.includes('404') || err.response?.status === 404) {
-        Alert.alert(
-          'Device Module Not Installed',
-          'The device registration module is not installed on this Odoo server.\n\nPlease ask your admin to install the "device_login_config" module in Odoo before configuring this device.',
-          [{ text: 'OK' }]
-        );
       } else {
-        showToastMessage(`Error: ${err.message}`);
+        showToastMessage(`Error: ${msg}`);
       }
     } finally {
       setLoadingConfigure(false);
@@ -356,6 +390,43 @@ const DeviceSetupScreen = () => {
                   </ScrollView>
                 </View>
               )}
+            </Field>
+
+            <View style={styles.divider} />
+
+            {/* Step 3 — Credentials */}
+            <View style={styles.stepRow}>
+              <View style={styles.stepBadge}><Text style={styles.stepNum}>3</Text></View>
+              <Text style={styles.stepTitle}>Admin Credentials</Text>
+            </View>
+
+            <Field error={errors.username}>
+              <TextInputNative
+                value={username}
+                onChangeText={(t) => { setUsername(t); clearError('username'); }}
+                onFocus={() => clearError('username')}
+                placeholder="Username"
+                placeholderTextColor="#bbb"
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="next"
+                style={[styles.nativeInput, errors.username && styles.inputError]}
+              />
+            </Field>
+
+            <Field error={errors.password}>
+              <TextInputNative
+                value={password}
+                onChangeText={(t) => { setPassword(t); clearError('password'); }}
+                onFocus={() => clearError('password')}
+                placeholder="Password"
+                placeholderTextColor="#bbb"
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="done"
+                style={[styles.nativeInput, errors.password && styles.inputError]}
+              />
             </Field>
 
             <View style={styles.divider} />
