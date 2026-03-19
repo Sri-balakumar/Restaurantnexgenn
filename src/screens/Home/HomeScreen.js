@@ -23,11 +23,7 @@ import { formatData } from "@utils/formatters";
 import { COLORS } from "@constants/theme";
 import { showToastMessage } from "@components/Toast";
 import { CategoryList } from "@components/Categories";
-<<<<<<< HEAD
 import { useDataFetching, useLoader, useTranslation } from "@hooks";
-=======
-import { useDataFetching, useLoader } from "@hooks";
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import { fetchProductDetailsByBarcode } from "@api/details/detailApi";
 import { OverlayLoader } from "@components/Loader";
@@ -37,10 +33,7 @@ const HomeScreen = ({ navigation }) => {
   const isFocused = useIsFocused();
   const { data, loading, fetchData, fetchMoreData } =
     useDataFetching(fetchCategories);
-<<<<<<< HEAD
   const { t, isRTL } = useTranslation();
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
   const handleBackPress = useCallback(() => {
     if (navigation.isFocused()) {
@@ -71,11 +64,7 @@ const HomeScreen = ({ navigation }) => {
 
   useEffect(() => {
     if (backPressCount === 1) {
-<<<<<<< HEAD
       showToastMessage(t.pressBackToExit);
-=======
-      showToastMessage("Press back again to exit");
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
     }
   }, [backPressCount]);
 
@@ -123,11 +112,7 @@ const HomeScreen = ({ navigation }) => {
         const details = productDetails[0];
         navigation.navigate('ProductDetail', { detail: details });
       } else {
-<<<<<<< HEAD
         showToastMessage(t.noProductsForBarcode);
-=======
-        showToastMessage("No Products found for this Barcode");
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       }
     } catch (error) {
       showToastMessage(`Error fetching inventory details ${error.message}`);
@@ -136,12 +121,9 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
-<<<<<<< HEAD
   const rtlRowStyle = isRTL ? { flexDirection: 'row-reverse' } : {};
   const rtlTextStyle = isRTL ? { textAlign: 'right', writingDirection: 'rtl' } : {};
 
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   return (
     <SafeAreaView backgroundColor={COLORS.primaryThemeColor}>
       <RoundedContainer>
@@ -155,7 +137,6 @@ const HomeScreen = ({ navigation }) => {
         {/* Take Orders button */}
         <TouchableOpacity
           onPress={() => navigateToScreen("POSRegister")}
-<<<<<<< HEAD
           style={[styles.takeOrderBtn, rtlRowStyle]}
           activeOpacity={0.85}
         >
@@ -171,23 +152,6 @@ const HomeScreen = ({ navigation }) => {
 
         {/* Our Specials header */}
         <ListHeader title={t.ourSpecials} subtitle={t.chefsPicksForToday} />
-=======
-          style={styles.takeOrderBtn}
-          activeOpacity={0.85}
-        >
-          <View style={styles.takeOrderIconWrap}>
-            <Image source={require('@assets/images/logo/logo.png')} style={styles.takeOrderIcon} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.takeOrderTitle}>Take Orders</Text>
-            <Text style={styles.takeOrderSub}>Dine-in, Takeaway & more</Text>
-          </View>
-          <Text style={styles.takeOrderArrow}>›</Text>
-        </TouchableOpacity>
-
-        {/* Our Specials header */}
-        <ListHeader title="Our Specials" subtitle="Chef's picks for today" />
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
         {/* 3-column category grid */}
         <FlatList
@@ -204,11 +168,7 @@ const HomeScreen = ({ navigation }) => {
           ListEmptyComponent={
             !loading ? (
               <View style={styles.emptyContainer}>
-<<<<<<< HEAD
                 <Text style={styles.emptyText}>{t.noSpecialsAvailable}</Text>
-=======
-                <Text style={styles.emptyText}>No specials available</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
               </View>
             ) : null
           }

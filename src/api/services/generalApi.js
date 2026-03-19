@@ -366,20 +366,26 @@ export const processInvoiceWithPaymentOdoo = async ({ partnerId, products = [], 
 // Validate POS order in Odoo to trigger name generation
 export const validatePosOrderOdoo = async (orderId) => {
   try {
-    const response = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        model: 'pos.order',
-        method: 'action_pos_order_paid',
-        args: [[orderId]],
-        kwargs: {},
-      },
-    }, { headers: { 'Content-Type': 'application/json' } });
-    if (response.data && response.data.error) {
-      return { error: response.data.error };
+    const { baseUrl, headers } = await _buildOdooHeaders();
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: 'pos.order',
+          method: 'action_pos_order_paid',
+          args: [[orderId]],
+          kwargs: {},
+        },
+      }),
+    });
+    const data = await response.json();
+    if (data && data.error) {
+      return { error: data.error };
     }
-    return { result: response.data.result };
+    return { result: data.result };
   } catch (error) {
     return { error };
   }
@@ -1294,6 +1300,50 @@ export const fetchPaymentJournalsOdoo = async () => {
   }
 };
 
+// Fetch all POS payment methods from Odoo (Cash, Card, Talabat, Bank Transfer, etc.)
+export const fetchPosPaymentMethodsOdoo = async () => {
+  try {
+    const { baseUrl, headers } = await _buildOdooHeaders();
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: 'pos.payment.method',
+          method: 'search_read',
+          args: [[]],
+          kwargs: { fields: ['id', 'name', 'journal_id', 'is_cash_count'], limit: 50 },
+        },
+      }),
+    });
+    const data = await response.json();
+    return data?.result || [];
+  } catch (e) {
+    return [];
+  }
+};
+
+// Fetch payment method ID for a given journal ID
+export const fetchPaymentMethodIdOdoo = async (journalId) => {
+  try {
+    const response = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
+      jsonrpc: '2.0',
+      method: 'call',
+      params: {
+        model: 'pos.payment.method',
+        method: 'search_read',
+        args: [[['journal_id', '=', journalId]]],
+        kwargs: { fields: ['id', 'name', 'journal_id'], limit: 1 },
+      },
+    }, { headers: { 'Content-Type': 'application/json' } });
+    return response.data?.result?.[0]?.id || null;
+  } catch (e) {
+    return null;
+  }
+};
+
 // Create invoice (account.move) in Odoo
 export const createInvoiceOdoo = async ({ partnerId, products = [], journalId = null, invoiceDate = null, reference = '' } = {}) => {
   try {
@@ -1469,6 +1519,8 @@ export const createPosOrderOdoo = async ({ partnerId = null, lines = [], session
       throw new Error('lines are required to create pos order');
     }
 
+    const { baseUrl, headers } = await _buildOdooHeaders();
+
     // Build lines entries for Odoo POS order
     const line_items = lines.map(l => {
       const price_unit = l.price || l.price_unit || l.list_price || 0;
@@ -1480,40 +1532,34 @@ export const createPosOrderOdoo = async ({ partnerId = null, lines = [], session
         price_unit,
         name: l.name || l.product_name || '',
         price_subtotal: subtotal,
-        price_subtotal_incl: subtotal, // Quick fix: set equal to price_subtotal
+        price_subtotal_incl: subtotal,
       }];
     });
 
     // Calculate total
     const amount_total = lines.reduce((sum, l) => sum + (l.price || l.price_unit || l.list_price || 0) * (l.qty || l.quantity || 1), 0);
     const vals = {
-      company_id: companyId || 1, // Default to 1 if not provided
-      name: orderName || '/', // Use '/' for auto-generated name if not provided
+      company_id: companyId || 1,
+      name: orderName || '/',
       partner_id: partnerId || false,
       lines: line_items,
       amount_tax: 0,
       amount_total,
       amount_paid: amount_total,
       amount_return: 0,
-      state: 'paid', // Set to 'paid' so Odoo auto-generates the order name
+      state: 'paid',
     };
     if (order_type) {
       try {
-        // Only set order_type if server pos.order has this field (avoid Odoo crash)
         const hasField = await (async (field) => {
           try {
             if (!global.__pos_order_fields_cache) {
-              const fieldsResp = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
-                jsonrpc: '2.0',
-                method: 'call',
-                params: {
-                  model: 'pos.order',
-                  method: 'fields_get',
-                  args: [],
-                  kwargs: {},
-                },
-              }, { headers: { 'Content-Type': 'application/json' } });
-              global.__pos_order_fields_cache = fieldsResp.data && fieldsResp.data.result ? Object.keys(fieldsResp.data.result) : [];
+              const fieldsResp = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+                method: 'POST', headers,
+                body: JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { model: 'pos.order', method: 'fields_get', args: [], kwargs: {} } }),
+              });
+              const fieldsData = await fieldsResp.json();
+              global.__pos_order_fields_cache = fieldsData && fieldsData.result ? Object.keys(fieldsData.result) : [];
             }
             return Array.isArray(global.__pos_order_fields_cache) && global.__pos_order_fields_cache.includes(field);
           } catch (e) {
@@ -1521,34 +1567,36 @@ export const createPosOrderOdoo = async ({ partnerId = null, lines = [], session
           }
         })('order_type');
         if (hasField) vals.order_type = String(order_type).toUpperCase();
-      } catch (e) {
-        // ignore - do not send unsupported field
-      }
+      } catch (e) {}
     }
     if (sessionId) vals.session_id = sessionId;
     if (posConfigId) vals.config_id = posConfigId;
     if (typeof preset_id !== 'undefined') vals.preset_id = preset_id;
 
-    const response = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        model: 'pos.order',
-        method: 'create',
-        args: [vals],
-        kwargs: {},
-      },
-    }, { headers: { 'Content-Type': 'application/json' } });
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: 'pos.order',
+          method: 'create',
+          args: [vals],
+          kwargs: {},
+        },
+      }),
+    });
+    const data = await response.json();
 
-    if (response.data && response.data.error) {
-      return { error: response.data.error };
+    if (data && data.error) {
+      return { error: data.error };
     }
 
-    const createdId = response.data.result;
+    const createdId = data.result;
     // Immediately validate the order to trigger name generation
     const validateResp = await validatePosOrderOdoo(createdId);
     if (validateResp && validateResp.error) {
-      // Still return createdId so payment can proceed
       return { result: createdId, error: validateResp.error };
     }
     return { result: createdId };
@@ -1563,6 +1611,8 @@ export const createPosPaymentOdoo = async ({ orderId, payments, amount, journalI
   try {
     if (!orderId) throw new Error('orderId is required');
 
+    const { baseUrl, headers } = await _buildOdooHeaders();
+
     // Support both legacy (amount) and new (payments array) API
     let paymentRecords = [];
     if (Array.isArray(payments) && payments.length > 0) {
@@ -1576,26 +1626,23 @@ export const createPosPaymentOdoo = async ({ orderId, payments, amount, journalI
     const results = [];
     for (const payment of paymentRecords) {
       const amt = Number(payment.amount) || 0;
-      if (amt === 0) continue; // Skip zero payments
+      if (amt === 0) continue;
 
       let finalPaymentMethodId = payment.paymentMethodId || paymentMethodId;
       let finalJournalId = payment.journalId || journalId;
-      let finalPaymentMode = payment.paymentMode || paymentMode;
 
       // If paymentMethodId is not provided, fetch it using journalId
       if (!finalPaymentMethodId) {
         if (!finalJournalId) throw new Error('paymentMethodId or journalId is required');
-        const pmResp = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
-          jsonrpc: '2.0',
-          method: 'call',
-          params: {
-            model: 'pos.payment.method',
-            method: 'search_read',
-            args: [[['journal_id', '=', finalJournalId]]],
-            kwargs: { fields: ['id', 'name', 'journal_id'], limit: 1 },
-          },
-        }, { headers: { 'Content-Type': 'application/json' } });
-        finalPaymentMethodId = pmResp.data?.result?.[0]?.id;
+        const pmResp = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+          method: 'POST', headers,
+          body: JSON.stringify({
+            jsonrpc: '2.0', method: 'call',
+            params: { model: 'pos.payment.method', method: 'search_read', args: [[['journal_id', '=', finalJournalId]]], kwargs: { fields: ['id', 'name', 'journal_id'], limit: 1 } },
+          }),
+        });
+        const pmData = await pmResp.json();
+        finalPaymentMethodId = pmData?.result?.[0]?.id;
         if (!finalPaymentMethodId) {
           return { error: { message: 'No payment_method_id found for journalId ' + finalJournalId } };
         }
@@ -1607,24 +1654,23 @@ export const createPosPaymentOdoo = async ({ orderId, payments, amount, journalI
         payment_method_id: finalPaymentMethodId,
         partner_id: partnerId || false,
         session_id: sessionId || false,
-        company_id: companyId || 1, // Corrected `CompanyId` to `companyId`
+        company_id: companyId || 1,
       };
 
-      const response = await axios.post(`${ODOO_BASE_URL}/web/dataset/call_kw`, {
-        jsonrpc: '2.0',
-        method: 'call',
-        params: {
-          model: 'pos.payment',
-          method: 'create',
-          args: [paymentVals],
-          kwargs: {},
-        },
-      }, { headers: { 'Content-Type': 'application/json' } });
+      const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          jsonrpc: '2.0', method: 'call',
+          params: { model: 'pos.payment', method: 'create', args: [paymentVals], kwargs: {} },
+        }),
+      });
+      const data = await response.json();
 
-      if (response.data && response.data.error) {
-        results.push({ error: response.data.error });
+      if (data && data.error) {
+        results.push({ error: data.error });
       } else {
-        results.push({ result: response.data.result });
+        results.push({ result: data.result });
       }
     }
     return { results };
@@ -2185,7 +2231,7 @@ export const recomputePosOrderTotals = async (orderId) => {
 };
 
 // Update an existing pos.order.line (qty, price_unit, name, etc.)
-export const updateOrderLineOdoo = async ({ lineId, qty, price_unit, name, orderId = null } = {}) => {
+export const updateOrderLineOdoo = async ({ lineId, qty, price_unit, name, discount, orderId = null } = {}) => {
   try {
     if (!lineId) throw new Error('lineId is required');
     const vals = {};
@@ -2193,12 +2239,14 @@ export const updateOrderLineOdoo = async ({ lineId, qty, price_unit, name, order
     if (typeof price_unit !== 'undefined') {
       vals.price_unit = Number(price_unit);
       // Recalculate subtotals when price_unit changes
-      if (typeof qty !== 'undefined') {
-        vals.price_subtotal = Number(qty) * Number(price_unit);
-        vals.price_subtotal_incl = Number(qty) * Number(price_unit);
-      }
+      const effectiveQty = typeof qty !== 'undefined' ? Number(qty) : 1;
+      const effectiveDiscount = typeof discount !== 'undefined' ? Number(discount) : 0;
+      const discountedPrice = Number(price_unit) * (1 - effectiveDiscount / 100);
+      vals.price_subtotal = effectiveQty * discountedPrice;
+      vals.price_subtotal_incl = effectiveQty * discountedPrice;
     }
     if (typeof name !== 'undefined') vals.name = name;
+    if (typeof discount !== 'undefined') vals.discount = Number(discount);
 
     const { baseUrl, headers } = await _buildOdooHeaders();
     const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {

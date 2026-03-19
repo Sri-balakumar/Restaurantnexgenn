@@ -55,6 +55,7 @@ const useProductStore = create((set, get) => ({
           const subtotal = Number(newQty) * Number(newPriceUnit);
           return {
             ...p,
+            ...product,
             // keep backwards-compatible fields in sync
             quantity: newQty,
             qty: newQty,

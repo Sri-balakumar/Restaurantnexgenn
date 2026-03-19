@@ -3,10 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Ani
 
 import { SafeAreaView } from '@components/containers';
 import { NavigationHeader } from '@components/Header';
-<<<<<<< HEAD
 import { useTranslation } from '@hooks';
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import { createDraftPosOrderOdoo, fetchPosPresets } from '@api/services/generalApi';
@@ -33,10 +30,7 @@ const Card3D = ({ children, style, delay = 0 }) => {
 };
 
 const ChooseOrderType = ({ navigation, route }) => {
-<<<<<<< HEAD
   const { t } = useTranslation();
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   const params = route?.params || {};
   const [loading, setLoading] = useState(false);
 
@@ -63,11 +57,7 @@ const ChooseOrderType = ({ navigation, route }) => {
       navigation.navigate('POSProducts', { ...params, orderId: null, preset, preset_id, cartOwner: 'takeaway_new', order_type: 'TAKEAWAY' });
     } catch (err) {
       console.error('goTakeaway error', err);
-<<<<<<< HEAD
       Alert.alert(t.error, err?.message || t.failedToStartTakeaway);
-=======
-      Alert.alert('Error', err?.message || 'Failed to start takeaway order');
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
     } finally {
       setLoading(false);
     }
@@ -80,13 +70,8 @@ const ChooseOrderType = ({ navigation, route }) => {
   const CARDS = [
     {
       key: 'dine',
-<<<<<<< HEAD
       title: t.dineIn,
       subtitle: t.dineInSubtitle,
-=======
-      title: 'Dine In',
-      subtitle: 'Seat guests at a table and take orders',
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       icon: '🍽️',
       accent: '#7c3aed',
       accentLight: '#f3f0ff',
@@ -94,13 +79,8 @@ const ChooseOrderType = ({ navigation, route }) => {
     },
     {
       key: 'takeout',
-<<<<<<< HEAD
       title: t.newTakeoutOrder,
       subtitle: t.newTakeoutSubtitle,
-=======
-      title: 'New Takeout Order',
-      subtitle: 'Create a fresh takeaway order for pickup',
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       icon: '🥡',
       accent: '#F47B20',
       accentLight: '#fff5eb',
@@ -108,13 +88,8 @@ const ChooseOrderType = ({ navigation, route }) => {
     },
     {
       key: 'orders',
-<<<<<<< HEAD
       title: t.takeoutOrders,
       subtitle: t.takeoutOrdersSubtitle,
-=======
-      title: 'Takeout Orders',
-      subtitle: 'View and manage existing takeout orders',
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       icon: '📋',
       accent: '#16a34a',
       accentLight: '#f0fdf4',
@@ -124,21 +99,13 @@ const ChooseOrderType = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={s.container}>
-<<<<<<< HEAD
       <NavigationHeader title={t.chooseOrderType} onBackPress={() => navigation.goBack()} logo={false} />
-=======
-      <NavigationHeader title="Choose Order Type" onBackPress={() => navigation.goBack()} logo={false} />
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
       {loading && (
         <View style={s.loadingOverlay}>
           <View style={s.loadingBox}>
             <ActivityIndicator size="large" color="#F47B20" />
-<<<<<<< HEAD
             <Text style={s.loadingText}>{t.creatingOrder}</Text>
-=======
-            <Text style={s.loadingText}>Creating order...</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           </View>
         </View>
       )}
@@ -151,11 +118,7 @@ const ChooseOrderType = ({ navigation, route }) => {
         </View>
 
         {/* Title */}
-<<<<<<< HEAD
         <Text style={s.headerTitle}>{t.howToServe}</Text>
-=======
-        <Text style={s.headerTitle}>How would you like to serve today?</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
         {/* Cards */}
         <View style={s.cardsArea}>

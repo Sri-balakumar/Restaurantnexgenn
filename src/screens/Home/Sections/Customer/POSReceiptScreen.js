@@ -7,42 +7,26 @@ import { COLORS } from '@constants/theme';
 import { useState } from 'react';
 import { Alert } from 'react-native';
 import { createInvoiceOdoo } from '@api/services/generalApi';
-<<<<<<< HEAD
 import { useTranslation } from '@hooks';
 
 const POSReceiptScreen = ({ navigation, route }) => {
   const { orderId, products = [], customer, amount, paymentMode, invoiceChecked } = route?.params || {};
   const { t } = useTranslation();
-=======
-
-const POSReceiptScreen = ({ navigation, route }) => {
-  const { orderId, products = [], customer, amount, paymentMode, invoiceChecked } = route?.params || {};
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
     useEffect(() => {
       if (invoiceChecked) {
         // Prepare invoice data
         const partnerId = (customer && (customer.id || customer.partner_id || customer.partner_id?.id)) || null;
         if (!partnerId) {
-<<<<<<< HEAD
           Alert.alert(t.missingCustomer, t.cannotCreateInvoice);
-=======
-          Alert.alert('Missing Customer', 'Cannot create invoice: customer is not specified or has no partner id.');
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           return;
         }
         const invoiceProducts = (products || []).map(p => ({ id: p.id, name: p.name, quantity: p.quantity || p.qty || 1, price: p.price }));
         (async () => {
           try {
             const resp = await createInvoiceOdoo({ partnerId, products: invoiceProducts });
-<<<<<<< HEAD
             Alert.alert(t.invoiceCreated, `${t.invoiceCreatedWithId} ${resp.id}`);
           } catch (err) {
             Alert.alert(t.invoiceError, err.message || 'Failed to create invoice');
-=======
-            Alert.alert('Invoice Created', `Invoice created with ID: ${resp.id}`);
-          } catch (err) {
-            Alert.alert('Invoice Error', err.message || 'Failed to create invoice');
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           }
         })();
       }
@@ -53,7 +37,6 @@ const POSReceiptScreen = ({ navigation, route }) => {
   const balanceCash = (amount - totalInclVat).toFixed(3);
 
   // Determine payment mode label (case-insensitive, robust)
-<<<<<<< HEAD
   let paymentModeLabel = t.cashPayment;
   const mode = (paymentMode || '').toLowerCase();
   if (mode === 'customer_account' || mode === 'cus_acc' || mode === 'customer account') {
@@ -62,21 +45,10 @@ const POSReceiptScreen = ({ navigation, route }) => {
     paymentModeLabel = t.cardPayment;
   } else if (mode === 'cash') {
     paymentModeLabel = t.cashPayment;
-=======
-  let paymentModeLabel = 'Cash / نقداً:';
-  const mode = (paymentMode || '').toLowerCase();
-  if (mode === 'customer_account' || mode === 'cus_acc' || mode === 'customer account') {
-    paymentModeLabel = 'Customer Account / حساب العميل:';
-  } else if (mode === 'card' || mode === 'credit_card' || mode === 'debit_card') {
-    paymentModeLabel = 'Card / بطاقة:';
-  } else if (mode === 'cash') {
-    paymentModeLabel = 'Cash / نقداً:';
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.white }}>
-<<<<<<< HEAD
       <NavigationHeader title={t.receipt} onBackPress={() => navigation.navigate('POSPayment', { orderId, products, customer, amount, paymentMode })} />
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.receiptBox}>
@@ -93,29 +65,6 @@ const POSReceiptScreen = ({ navigation, route }) => {
             <Text style={styles.tableHeaderCell}>{t.unitPrice}</Text>
             <Text style={styles.tableHeaderCell}>{t.tax}</Text>
             <Text style={styles.tableHeaderCell}>{t.totalLabel}</Text>
-=======
-      <NavigationHeader title="Receipt" onBackPress={() => navigation.navigate('POSPayment', { orderId, products, customer, amount, paymentMode })} />
-      <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.receiptBox}>
-          <Text style={styles.title}>NEX GENN POS</Text>
-          <Text style={styles.location}>Oman</Text>
-          <Text style={styles.invoiceType}>Simplified Tax Invoice / فاتورة ضريبية مبسطة</Text>
-          <View style={styles.divider} />
-          <Text style={styles.cashier}>Cashier: Served by Administrator</Text>
-          <Text style={styles.invoiceNo}>No: {orderId || '000001'}</Text>
-          <View style={styles.divider} />
-          <View style={styles.tableHeaderRow}>
-            <Text style={styles.tableHeaderCell}>Product Name
-اسم المنتج</Text>
-            <Text style={styles.tableHeaderCell}>Qty
-الكمية</Text>
-            <Text style={styles.tableHeaderCell}>Unit Price
-سعر الوحدة</Text>
-            <Text style={styles.tableHeaderCell}>Tax
-الضريبة</Text>
-            <Text style={styles.tableHeaderCell}>Total
-الإجمالي</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           </View>
           {products.map((p, idx) => (
             <View key={idx} style={styles.tableRow}>
@@ -128,7 +77,6 @@ const POSReceiptScreen = ({ navigation, route }) => {
           ))}
           <View style={styles.divider} />
           <View style={styles.summaryRow}>
-<<<<<<< HEAD
             <Text style={styles.summaryLabel}>{t.totalExclVat}</Text>
             <Text style={styles.summaryValue}>{total.toFixed(3)} ج.ع.</Text>
           </View>
@@ -138,31 +86,14 @@ const POSReceiptScreen = ({ navigation, route }) => {
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>{t.totalInclVat}</Text>
-=======
-            <Text style={styles.summaryLabel}>Total (Excl Vat):</Text>
-            <Text style={styles.summaryValue}>{total.toFixed(3)} ج.ع.</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total Vat:</Text>
-            <Text style={styles.summaryValue}>{totalVat} ج.ع.</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total (Incl Vat):</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             <Text style={styles.summaryValue}>{totalInclVat} ج.ع.</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.taxTable}>
             <View style={styles.taxTableRow}>
-<<<<<<< HEAD
               <Text style={styles.taxTableCell}>{t.taxPercent}</Text>
               <Text style={styles.taxTableCell}>{t.taxableAmount}</Text>
               <Text style={styles.taxTableCell}>{t.taxAmount}</Text>
-=======
-              <Text style={styles.taxTableCell}>Tax %</Text>
-              <Text style={styles.taxTableCell}>Taxable Amount</Text>
-              <Text style={styles.taxTableCell}>Tax Amount</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             </View>
             <View style={styles.taxTableRow}>
               <Text style={styles.taxTableCell}>0.00</Text>
@@ -176,18 +107,13 @@ const POSReceiptScreen = ({ navigation, route }) => {
             </View>
           </View>
           <View style={styles.divider} />
-<<<<<<< HEAD
           <Text style={styles.paymentDetailsTitle}>{t.paymentDetails}</Text>
-=======
-          <Text style={styles.paymentDetailsTitle}>Payment Details</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           {/* Show payment mode label above Tender Cash */}
           <View style={styles.paymentDetailsRow}>
             <Text style={styles.paymentLabel}>{paymentModeLabel}</Text>
             <Text style={styles.paymentValue}>{amount ? amount.toFixed(3) : totalInclVat} ج.ع.</Text>
           </View>
           <View style={styles.paymentDetailsRow}>
-<<<<<<< HEAD
             <Text style={styles.paymentLabel}>{t.tenderCash}</Text>
             <Text style={styles.paymentValue}>{totalInclVat} ج.ع.</Text>
           </View>
@@ -205,25 +131,6 @@ const POSReceiptScreen = ({ navigation, route }) => {
         </View>
         <Button
           title={t.newOrder}
-=======
-            <Text style={styles.paymentLabel}>Tender Cash / المبلغ المدفوع:</Text>
-            <Text style={styles.paymentValue}>{totalInclVat} ج.ع.</Text>
-          </View>
-          <View style={styles.paymentDetailsRow}>
-            <Text style={styles.paymentLabel}>Balance Cash / المبلغ المتبقي:</Text>
-            <Text style={styles.paymentValue}>{balanceCash} ج.ع.</Text>
-          </View>
-          <View style={styles.divider} />
-          <Text style={styles.totalQty}>Total Qty: {products.reduce((s, p) => s + (p.quantity || p.qty || 0), 0)}</Text>
-          <View style={styles.divider} />
-          <Text style={styles.footerText}>شكراً لزيارتكم</Text>
-          <Text style={styles.footerText}>يرجى الاحتفاظ بالفاتورة للاستبدال خلال 15 يوماً</Text>
-          <Text style={styles.footerText}>Keep Bill For Exchange Within 15 Days</Text>
-          <Text style={styles.footerText}>&lt;&lt; You Saved Amount RO: 0.000 &gt;&gt;</Text>
-        </View>
-        <Button
-          title="New Order"
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           onPress={() => {
             // Clear cart logic (assuming you have a cart store or context)
             if (typeof route?.params?.clearCart === 'function') {
@@ -234,11 +141,7 @@ const POSReceiptScreen = ({ navigation, route }) => {
           style={{ marginTop: 24 }}
         />
         {/* Invoice is now auto-created if invoiceChecked is true */}
-<<<<<<< HEAD
         <Button title={t.printFullReceipt} onPress={() => window.print && window.print()} style={{ marginTop: 12, marginBottom: 12 }} />
-=======
-        <Button title="Print Full Receipt" onPress={() => window.print && window.print()} style={{ marginTop: 12, marginBottom: 12 }} />
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       </ScrollView>
     </SafeAreaView>
   );

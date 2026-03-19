@@ -12,11 +12,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-<<<<<<< HEAD
 import { CameraView, useCameraPermissions } from 'expo-camera';
-=======
-import { BarCodeScanner } from 'expo-barcode-scanner';
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Text from '@components/Text';
@@ -30,24 +26,13 @@ const DeviceQRScannerScreen = () => {
   const route = useRoute();
   const { deviceUUID, deviceModel, serverUrl } = route.params || {};
 
-<<<<<<< HEAD
   const [permission, requestPermission] = useCameraPermissions();
-=======
-  const [hasPermission, setHasPermission] = useState(null);
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState('Point camera at the QR code on the Odoo screen');
 
   useEffect(() => {
-<<<<<<< HEAD
     requestPermission();
-=======
-    (async () => {
-      const { status } = await BarCodeScanner.requestPermissionsAsync();
-      setHasPermission(status === 'granted');
-    })();
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   }, []);
 
   const resetScanner = () => {
@@ -124,11 +109,7 @@ const DeviceQRScannerScreen = () => {
     }
   };
 
-<<<<<<< HEAD
   if (!permission) {
-=======
-  if (hasPermission === null) {
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={PURPLE} />
@@ -137,11 +118,7 @@ const DeviceQRScannerScreen = () => {
     );
   }
 
-<<<<<<< HEAD
   if (!permission.granted) {
-=======
-  if (hasPermission === false) {
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
     return (
       <View style={styles.center}>
         <Text style={styles.centerText}>Camera permission denied.</Text>
@@ -155,15 +132,9 @@ const DeviceQRScannerScreen = () => {
 
   return (
     <View style={styles.container}>
-<<<<<<< HEAD
       <CameraView
         onBarcodeScanned={scanned ? undefined : ({ data }) => handleBarCodeScanned({ data })}
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-=======
-      <BarCodeScanner
-        onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
-        barCodeTypes={[BarCodeScanner.Constants.BarCodeType.qr]}
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         style={StyleSheet.absoluteFillObject}
       />
 

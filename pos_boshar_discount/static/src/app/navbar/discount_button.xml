@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+
+    <!-- Main Button Component -->
+    <t t-name="pos_boshar_discount.DiscountButton">
+        <div class="pos-discount-topbar d-flex align-items-center gap-0 ms-2">
+            <button class="btn btn-lg pos-discount-btn"
+                t-att-class="{'pos-discount-btn-active': state.currentDiscount > 0}"
+                t-on-click="onClickDiscount">
+                <i class="fa fa-tag me-1"/>
+                <span t-if="state.currentDiscount > 0" t-esc="state.currentDiscount + '%'"/>
+                <span t-else="">Discount</span>
+            </button>
+            <button class="btn btn-lg pos-discount-menu-btn"
+                t-on-click="onClickManage">
+                <span>&#8942;</span>
+            </button>
+            <button class="btn btn-lg pos-discount-clear-btn ms-1"
+                t-on-click="onClickClear">
+                <i class="fa fa-times me-1"/>Clear
+            </button>
+        </div>
+    </t>
+
+    <!-- Discount Selection Popup -->
+    <t t-name="pos_boshar_discount.DiscountPopup">
+        <Dialog title="'Select Discount'" size="'md'">
+            <div class="popup-grid">
+                <t t-foreach="props.variants" t-as="percent" t-key="percent">
+                    <button class="popup-variant-btn"
+                        t-att-class="{'popup-variant-btn-active': props.currentDiscount === percent}"
+                        t-on-click="() => this.onSelect(percent)">
+                        <t t-esc="percent + '%'"/>
+                    </button>
+                </t>
+            </div>
+            <t t-set-slot="footer">
+                <button class="btn btn-secondary btn-lg lh-lg" t-on-click="props.close">Cancel</button>
+            </t>
+        </Dialog>
+    </t>
+
+    <!-- Manage Popup -->
+    <t t-name="pos_boshar_discount.ManagePopup">
+        <Dialog title="'Manage Discounts'" size="'md'">
+            <button class="popup-manage-btn popup-manage-add" t-on-click="() => this.onAction('add')">+ Add Variant</button>
+            <button class="popup-manage-btn popup-manage-edit" t-on-click="() => this.onAction('edit')">Edit Variants</button>
+            <button class="popup-manage-btn popup-manage-delete" t-on-click="() => this.onAction('delete')">Delete Variant</button>
+            <t t-set-slot="footer">
+                <button class="btn btn-secondary btn-lg lh-lg" t-on-click="props.close">Cancel</button>
+            </t>
+        </Dialog>
+    </t>
+
+    <!-- Add Variant Popup -->
+    <t t-name="pos_boshar_discount.AddVariantPopup">
+        <Dialog title="'Add New Discount'" size="'sm'">
+            <div class="popup-input-row">
+                <input type="number" class="popup-input" placeholder="15" min="1" max="100"
+                    t-ref="addInput"
+                    t-on-keyup="onKeyup"/>
+                <span class="popup-percent-label">%</span>
+            </div>
+            <t t-set-slot="footer">
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary btn-lg lh-lg" t-on-click="onConfirm">Add</button>
+                    <button class="btn btn-secondary btn-lg lh-lg" t-on-click="props.close">Cancel</button>
+                </div>
+            </t>
+        </Dialog>
+    </t>
+
+    <!-- Edit Variants Popup -->
+    <t t-name="pos_boshar_discount.EditVariantsPopup">
+        <Dialog title="'Edit Variants'" size="'sm'">
+            <div class="popup-edit-list">
+                <t t-foreach="props.variants" t-as="percent" t-key="percent_index">
+                    <div class="popup-input-row">
+                        <input type="number" class="popup-input edit-variant-input" t-att-value="percent" min="1" max="100"/>
+                        <span class="popup-percent-label">%</span>
+                    </div>
+                </t>
+            </div>
+            <t t-set-slot="footer">
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary btn-lg lh-lg" t-on-click="onConfirm">Save</button>
+                    <button class="btn btn-secondary btn-lg lh-lg" t-on-click="props.close">Cancel</button>
+                </div>
+            </t>
+        </Dialog>
+    </t>
+
+    <!-- Delete Variant Popup -->
+    <t t-name="pos_boshar_discount.DeleteVariantPopup">
+        <Dialog title="'Delete Variant'" size="'md'">
+            <div class="popup-subtext">Tap to delete</div>
+            <div class="popup-grid">
+                <t t-foreach="props.variants" t-as="percent" t-key="percent">
+                    <button class="popup-variant-btn popup-variant-btn-delete"
+                        t-on-click="() => this.onDelete(percent)">
+                        <t t-esc="percent + '%'"/>
+                    </button>
+                </t>
+            </div>
+            <t t-set-slot="footer">
+                <button class="btn btn-secondary btn-lg lh-lg" t-on-click="props.close">Cancel</button>
+            </t>
+        </Dialog>
+    </t>
+
+    <!-- Inject DiscountButton into Navbar -->
+    <t t-name="pos_boshar_discount.Navbar" t-inherit="point_of_sale.Navbar" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('pos-leftheader')]//div[hasclass('navbar-menu')]" position="after">
+            <DiscountButton t-if="pos.getOrder()"/>
+        </xpath>
+    </t>
+
+</templates>

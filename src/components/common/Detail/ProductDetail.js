@@ -365,11 +365,7 @@ const ProductDetail = ({ navigation, route }) => {
 
   return (
     <SafeAreaView>
-<<<<<<< HEAD
       <NavigationHeader title="Product Details" onBackPress={() => navigation.goBack()} logo={false} />
-=======
-      <NavigationHeader title="Product Details" onBackPress={() => navigation.goBack()} />
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       <RoundedScrollContainer>
         {details && Object.keys(details).length > 0 ? (
           <>

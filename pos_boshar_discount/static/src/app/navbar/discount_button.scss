@@ -1,0 +1,247 @@
+/* POS Discount Button - Top Bar Styles */
+
+.pos-discount-topbar {
+    position: relative;
+    display: inline-flex !important;
+    align-items: center !important;
+}
+
+.pos-discount-btn {
+    padding: 10px 16px !important;
+    border-radius: 10px 0 0 10px !important;
+    border: none !important;
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
+    color: white !important;
+    font-weight: 700 !important;
+    font-size: 15px !important;
+    cursor: pointer !important;
+    height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+
+    &.pos-discount-btn-active {
+        background: linear-gradient(135deg, #17a2b8 0%, #20c997 100%) !important;
+    }
+}
+
+.pos-discount-menu-btn {
+    padding: 10px 10px !important;
+    border-radius: 0 10px 10px 0 !important;
+    border: none !important;
+    border-left: 1px solid rgba(255, 255, 255, 0.3) !important;
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
+    color: white !important;
+    font-weight: 700 !important;
+    font-size: 20px !important;
+    cursor: pointer !important;
+    height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
+.pos-discount-clear-btn {
+    padding: 10px 16px !important;
+    border-radius: 10px !important;
+    border: 2px solid #dc3545 !important;
+    background: white !important;
+    color: #dc3545 !important;
+    font-weight: 700 !important;
+    font-size: 15px !important;
+    cursor: pointer !important;
+    height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+
+    &:hover {
+        background: #dc3545 !important;
+        color: white !important;
+    }
+}
+
+/* Popup Overlay */
+.pos-discount-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Popup Container */
+.pos-discount-popup {
+    background: white;
+    border-radius: 20px;
+    padding: 25px;
+    min-width: 320px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: popIn 0.3s ease;
+}
+
+.popup-header {
+    font-size: 24px;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.popup-subtext {
+    font-size: 14px;
+    color: #666;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.popup-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.popup-variant-btn {
+    padding: 20px;
+    background: #f8f9fa;
+    color: #333;
+    border: 3px solid #e0e0e0;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 22px;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+        background: #28a745;
+        color: white;
+        border-color: #28a745;
+    }
+
+    &.popup-variant-btn-active {
+        background: #28a745;
+        color: white;
+        border-color: #28a745;
+    }
+
+    &.popup-variant-btn-delete:hover {
+        background: #dc3545;
+        color: white;
+        border-color: #dc3545;
+    }
+}
+
+.popup-cancel-btn {
+    width: 100%;
+    padding: 15px;
+    background: #f8f9fa;
+    color: #666;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover {
+        background: #e9ecef;
+    }
+}
+
+.popup-confirm-btn {
+    width: 100%;
+    padding: 15px;
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+
+    &:hover {
+        background: #218838;
+    }
+}
+
+.popup-manage-btn {
+    width: 100%;
+    padding: 15px;
+    margin-bottom: 10px;
+    background: white;
+    color: #333;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s;
+
+    &.popup-manage-add:hover {
+        background: #28a745;
+        color: white;
+        border-color: #28a745;
+    }
+
+    &.popup-manage-edit:hover {
+        background: #007bff;
+        color: white;
+        border-color: #007bff;
+    }
+
+    &.popup-manage-delete:hover {
+        background: #dc3545;
+        color: white;
+        border-color: #dc3545;
+    }
+}
+
+.popup-input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.popup-input {
+    flex: 1;
+    padding: 15px;
+    border: 3px solid #28a745;
+    border-radius: 10px;
+    font-size: 28px;
+    font-weight: 700;
+    text-align: center;
+}
+
+.popup-percent-label {
+    font-size: 28px;
+    font-weight: 700;
+    color: #28a745;
+}
+
+.popup-edit-list {
+    margin-bottom: 20px;
+
+    .popup-input {
+        border-color: #e0e0e0;
+        font-size: 20px;
+    }
+
+    .popup-percent-label {
+        font-size: 20px;
+        color: #666;
+    }
+}
+
+@keyframes popIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}

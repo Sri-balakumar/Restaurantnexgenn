@@ -5,19 +5,13 @@ import { SafeAreaView } from '@components/containers';
 import { fetchPosPresets, fetchOrders, fetchPosOrderById, fetchOrderLinesByIds } from '@api/services/generalApi';
 import { useFocusEffect } from '@react-navigation/native';
 import { formatCurrency } from '@utils/formatters/currency';
-<<<<<<< HEAD
 import { useTranslation } from '@hooks';
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
 const TakeawayOrdersScreen = ({ navigation, route }) => {
   const { sessionId, userId, userName } = route?.params || {};
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState([]);
-<<<<<<< HEAD
   const { t } = useTranslation();
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -39,11 +33,7 @@ const TakeawayOrdersScreen = ({ navigation, route }) => {
       });
       setOrders(filtered);
     } catch (e) {
-<<<<<<< HEAD
       Alert.alert(t.error, t.failedToLoadOrders);
-=======
-      Alert.alert('Error', 'Failed to load takeaway orders');
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
     } finally {
       setLoading(false);
     }
@@ -67,11 +57,7 @@ const TakeawayOrdersScreen = ({ navigation, route }) => {
       }
       navigation.navigate('POSProducts', { ...route?.params, orderId: order.id, orderLines, cartOwner: `order_${order.id}`, order_type: 'TAKEAWAY' });
     } catch (e) {
-<<<<<<< HEAD
       Alert.alert(t.error, t.failedToOpenOrder);
-=======
-      Alert.alert('Error', 'Failed to open order');
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
     }
   };
 
@@ -86,19 +72,11 @@ const TakeawayOrdersScreen = ({ navigation, route }) => {
 
   const getStatusLabel = (state) => {
     switch (state) {
-<<<<<<< HEAD
       case 'draft': return t.open;
       case 'paid': return t.paid;
       case 'done': return t.done;
       case 'cancel': return t.cancelled;
       default: return state || t.open;
-=======
-      case 'draft': return 'Open';
-      case 'paid': return 'Paid';
-      case 'done': return 'Done';
-      case 'cancel': return 'Cancelled';
-      default: return state || 'Open';
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
     }
   };
 
@@ -119,11 +97,7 @@ const TakeawayOrdersScreen = ({ navigation, route }) => {
 
   const renderItem = ({ item, index }) => {
     const status = getStatusColor(item.state);
-<<<<<<< HEAD
     const orderName = item.name && item.name !== '/' ? item.name : `${t.order} #${item.id}`;
-=======
-    const orderName = item.name && item.name !== '/' ? item.name : `Order #${item.id}`;
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
     return (
       <TouchableOpacity onPress={() => openOrder(item)} style={s.card} activeOpacity={0.7}>
         <View style={s.cardRow}>
@@ -147,50 +121,30 @@ const TakeawayOrdersScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
-<<<<<<< HEAD
       <NavigationHeader title={t.takeawayOrders} onBackPress={() => navigation.goBack()} logo={false} />
-=======
-      <NavigationHeader title="Takeaway Orders" onBackPress={() => navigation.goBack()} logo={false} />
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       <View style={s.container}>
         {/* Summary bar */}
         <View style={s.summaryBar}>
           <View style={s.summaryItem}>
             <Text style={s.summaryCount}>{orders.length}</Text>
-<<<<<<< HEAD
             <Text style={s.summaryLabel}>{t.totalOrders}</Text>
-=======
-            <Text style={s.summaryLabel}>Total Orders</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           </View>
           <View style={s.summaryDivider} />
           <View style={s.summaryItem}>
             <Text style={s.summaryCount}>{orders.filter(o => o.state === 'draft').length}</Text>
-<<<<<<< HEAD
             <Text style={s.summaryLabel}>{t.open}</Text>
-=======
-            <Text style={s.summaryLabel}>Open</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           </View>
           <View style={s.summaryDivider} />
           <View style={s.summaryItem}>
             <Text style={s.summaryCount}>{orders.filter(o => o.state === 'paid' || o.state === 'done').length}</Text>
-<<<<<<< HEAD
             <Text style={s.summaryLabel}>{t.completed}</Text>
-=======
-            <Text style={s.summaryLabel}>Completed</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           </View>
         </View>
 
         {loading ? (
           <View style={s.loadingWrap}>
             <ActivityIndicator size="large" color="#7c3aed" />
-<<<<<<< HEAD
             <Text style={s.loadingText}>{t.loadingOrders}</Text>
-=======
-            <Text style={s.loadingText}>Loading orders...</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           </View>
         ) : (
           <FlatList
@@ -202,13 +156,8 @@ const TakeawayOrdersScreen = ({ navigation, route }) => {
             ListEmptyComponent={
               <View style={s.emptyWrap}>
                 <Text style={s.emptyIcon}>📭</Text>
-<<<<<<< HEAD
                 <Text style={s.emptyTitle}>{t.noTakeawayOrders}</Text>
                 <Text style={s.emptySub}>{t.takeawayOrdersAppear}</Text>
-=======
-                <Text style={s.emptyTitle}>No Takeaway Orders</Text>
-                <Text style={s.emptySub}>Takeaway orders will appear here</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
               </View>
             }
           />

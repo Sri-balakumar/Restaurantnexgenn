@@ -1,8 +1,8 @@
 import React, { useEffect, useCallback, useState, useMemo, useRef } from 'react';
-import { View, Text, TextInput, FlatList, TouchableOpacity, ScrollView, Modal, Pressable, StyleSheet as RNStyleSheet, InteractionManager, Platform } from 'react-native';
+import { View, Text, TextInput, FlatList, TouchableOpacity, ScrollView, Modal, Pressable, StyleSheet as RNStyleSheet, InteractionManager, Platform, Alert, ActivityIndicator } from 'react-native';
 import { NavigationHeader } from '@components/Header';
 import { ProductsList } from '@components/Product';
-import { fetchPosPresets, addLineToOrderOdoo, updateOrderLineOdoo, removeOrderLineOdoo, fetchPosOrderById, fetchOrderLinesByIds, fetchPosCategoriesOdoo, fetchProductCategoriesOdoo, fetchCategoriesOdoo, preloadAllProducts, createDraftPosOrderOdoo } from '@api/services/generalApi';
+import { fetchPosPresets, addLineToOrderOdoo, updateOrderLineOdoo, removeOrderLineOdoo, fetchPosOrderById, fetchOrderLinesByIds, fetchPosCategoriesOdoo, fetchProductCategoriesOdoo, fetchCategoriesOdoo, preloadAllProducts, createDraftPosOrderOdoo, fetchPosPaymentMethodsOdoo, createPosOrderOdoo, createPosPaymentOdoo, fetchPOSSessions } from '@api/services/generalApi';
 import { useFocusEffect } from '@react-navigation/native';
 import { FlashList } from '@shopify/flash-list';
 import { formatData } from '@utils/formatters';
@@ -18,10 +18,25 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AntDesign } from '@expo/vector-icons';
 import { Button } from '@components/common/Button';
 import useKitchenTickets from '@stores/kitchen/ticketsStore';
-<<<<<<< HEAD
 import { useTranslation } from '@hooks';
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
+
+// Helper: build Odoo headers from AsyncStorage (same as generalApi._buildOdooHeaders)
+const _buildOdooHeadersLocal = async () => {
+  const { DEFAULT_ODOO_DB, DEFAULT_ODOO_BASE_URL } = require('@api/config/odooConfig');
+  const [deviceUrl, sessionId, deviceDb] = await Promise.all([
+    AsyncStorage.getItem('device_server_url'),
+    AsyncStorage.getItem('odoo_session_id'),
+    AsyncStorage.getItem('device_db_name'),
+  ]);
+  const baseUrl = (deviceUrl || DEFAULT_ODOO_BASE_URL || '').replace(/\/+$/, '');
+  const dbName = deviceDb || DEFAULT_ODOO_DB;
+  const headers = { 'Content-Type': 'application/json', 'X-Odoo-Database': dbName };
+  if (sessionId) {
+    headers['Cookie'] = `session_id=${sessionId}`;
+    headers['X-Openerp-Session-Id'] = sessionId;
+  }
+  return { baseUrl, dbName, headers };
+};
 
 // Static styles — created once, never re-allocated
 const localStyles = RNStyleSheet.create({
@@ -325,13 +340,79 @@ const localStyles = RNStyleSheet.create({
   presetCancel: { padding: 12, marginTop: 6, borderRadius: 8, backgroundColor: '#f3f4f6' },
   presetCancelText: { textAlign: 'center', fontWeight: '700' },
   addProductsBtn: { paddingVertical: 8 },
+
+  // Payment button on register panel
+  payNowBtn: {
+    backgroundColor: '#16a34a',
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    marginTop: 8,
+    ...Platform.select({
+      ios: { shadowColor: '#16a34a', shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
+      android: { elevation: 6 },
+    }),
+  },
+  payNowBtnText: { color: '#fff', fontWeight: '900', fontSize: 16, letterSpacing: 0.3 },
+
+  // Payment modal
+  payModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  payModalCard: { backgroundColor: '#fff', borderRadius: 24, padding: 24, paddingBottom: 28, width: '100%', maxWidth: 500 },
+  payModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  payModalTitle: { fontSize: 20, fontWeight: '900', color: '#1a1a2e' },
+  payModalClose: { fontSize: 22, fontWeight: '700', color: '#8896ab', padding: 4 },
+  payTotalBox: { backgroundColor: '#f8f9fc', borderRadius: 16, padding: 18, alignItems: 'center', marginBottom: 20 },
+  payTotalLabel: { fontSize: 13, fontWeight: '600', color: '#8896ab', marginBottom: 4 },
+  payTotalValue: { fontSize: 32, fontWeight: '900', color: '#1a1a2e' },
+  payMethodRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f6f8fa', borderRadius: 14, paddingVertical: 16, paddingHorizontal: 16, marginBottom: 8, borderWidth: 2, borderColor: '#eee' },
+  payMethodRowActive: { backgroundColor: '#2E294E', borderColor: '#2E294E' },
+  payModeIcon: { fontSize: 24, marginRight: 14 },
+  payMethodName: { fontSize: 16, fontWeight: '700', color: '#1a1a2e', flex: 1 },
+  payMethodNameActive: { color: '#fff' },
+  payMethodCheck: { fontSize: 18, fontWeight: '800', color: '#22c55e' },
+  payAmountLabel: { fontSize: 14, fontWeight: '700', color: '#444', marginBottom: 8 },
+  payAmountInput: { borderWidth: 1.5, borderColor: '#e0e0e0', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 16, fontSize: 22, fontWeight: '700', color: '#1a1a2e', textAlign: 'center', backgroundColor: '#f8f9fc' },
+  payChangeText: { color: '#16a34a', fontSize: 16, fontWeight: '700', textAlign: 'center', marginTop: 8 },
+  payRemainingText: { color: '#dc2626', fontSize: 16, fontWeight: '700', textAlign: 'center', marginTop: 8 },
+  payConfirmBtn: { backgroundColor: '#16a34a', paddingVertical: 18, borderRadius: 14, alignItems: 'center', justifyContent: 'center', ...Platform.select({ ios: { shadowColor: '#16a34a', shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } }, android: { elevation: 6 } }) },
+  payConfirmText: { color: '#fff', fontWeight: '900', fontSize: 18, letterSpacing: 0.3 },
+
+  // Discount info on order line
+  discountInfoRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 },
+  discountBadge: { backgroundColor: '#dc2626', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  discountBadgeText: { color: '#fff', fontSize: 12, fontWeight: '900' },
+  discountOrigPrice: { fontSize: 12, color: '#aaa', textDecorationLine: 'line-through', fontWeight: '500' },
+  discountArrow: { fontSize: 12, color: '#aaa' },
+  discountNewPrice: { fontSize: 13, color: '#16a34a', fontWeight: '800' },
+
+  // Discount modal
+  orderLineNote: { fontSize: 11, color: '#7c3aed', fontWeight: '600', marginTop: 3, fontStyle: 'italic' },
+
+  // Note section in popup
+  noteSection: { marginBottom: 16 },
+  noteSectionTitle: { fontSize: 14, fontWeight: '800', color: '#1a1a2e', marginBottom: 8 },
+  noteInput: { backgroundColor: '#f8f9fc', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', padding: 12, fontSize: 14, color: '#1a1a2e', minHeight: 70, fontWeight: '500' },
+  discountSectionTitle: { fontSize: 14, fontWeight: '800', color: '#1a1a2e', marginBottom: 10 },
+
+  discountOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  discountCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24, width: '100%', maxWidth: 400 },
+  discountHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  discountTitle: { fontSize: 20, fontWeight: '900', color: '#1a1a2e' },
+  discountCloseBtn: { fontSize: 22, fontWeight: '700', color: '#8896ab', padding: 4 },
+  discountProductName: { fontSize: 14, fontWeight: '600', color: '#6b7a90', marginBottom: 20, textAlign: 'center' },
+  discountGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'center', marginBottom: 20 },
+  discountOption: { width: '28%', backgroundColor: '#f6f8fa', borderRadius: 14, paddingVertical: 20, alignItems: 'center', borderWidth: 2, borderColor: '#eee' },
+  discountOptionActive: { backgroundColor: '#16a34a', borderColor: '#16a34a' },
+  discountOptionText: { fontSize: 22, fontWeight: '900', color: '#1a1a2e' },
+  discountOptionTextActive: { color: '#fff' },
+  discountRemoveBtn: { backgroundColor: '#fef2f2', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 10, borderWidth: 1, borderColor: '#fecaca' },
+  discountRemoveBtnText: { color: '#dc2626', fontWeight: '800', fontSize: 15 },
+  discountCancelBtn: { backgroundColor: '#f3f4f6', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  discountCancelText: { fontWeight: '700', fontSize: 15, color: '#444' },
 });
 
 const POSProducts = ({ navigation, route }) => {
-<<<<<<< HEAD
   const { t } = useTranslation();
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   const {
     openingAmount, sessionId, registerId, registerName, userId, userName
   } = route?.params || {};
@@ -359,6 +440,19 @@ const POSProducts = ({ navigation, route }) => {
   const [confirmName, setConfirmName] = useState('');
   const [confirmQty, setConfirmQty] = useState(1);
   const [backLoading, setBackLoading] = useState(false);
+
+  // Payment state
+  const [payModalVisible, setPayModalVisible] = useState(false);
+  const [selectedPayMethodId, setSelectedPayMethodId] = useState(null);
+  const [payInputAmount, setPayInputAmount] = useState('');
+  const [paying, setPaying] = useState(false);
+  const [payMethods, setPayMethods] = useState([]);
+
+  // Discount state
+  const [discountModalVisible, setDiscountModalVisible] = useState(false);
+  const [discountTargetItem, setDiscountTargetItem] = useState(null);
+  const DISCOUNT_OPTIONS = [10, 20, 30, 40, 50];
+  const [noteText, setNoteText] = useState('');
   const pendingSyncs = useRef([]);  // Track pending addLine API calls
   const initialLoadDone = useRef(false);  // Track if initial server load is complete
   const orderIdRef = useRef(route?.params?.orderId || null);  // Mutable orderId — set lazily for takeaway
@@ -374,6 +468,169 @@ const POSProducts = ({ navigation, route }) => {
   }, []);
 
   const setSnapshot = useKitchenTickets((s) => s.setSnapshot);
+
+  // Load payment methods from Odoo (dynamic — fetches Cash, Talabat, Bank Transfer, Card, etc.)
+  useEffect(() => {
+    (async () => {
+      try {
+        const methods = await fetchPosPaymentMethodsOdoo();
+        setPayMethods(methods);
+        if (methods.length > 0) setSelectedPayMethodId(methods[0].id);
+      } catch (_) {}
+    })();
+  }, []);
+
+  // Payment handler — uses existing draft order, adds payment, validates to 'paid'
+  const handlePayNow = useCallback(async (cartItems) => {
+    if (!cartItems.length) return;
+    if (!selectedPayMethodId) { Alert.alert(t.paymentFailed, t.selectPaymentMethod); return; }
+
+    const existingOrderId = orderIdRef.current;
+    if (!existingOrderId) { Alert.alert(t.paymentFailed, 'No order found. Please add items first.'); return; }
+
+    setPaying(true);
+    try {
+      const { baseUrl, headers } = await _buildOdooHeadersLocal();
+
+      const totalAmt = cartItems.reduce((s, it) => s + (Number(it.quantity ?? it.qty ?? 1) * Number(it.price_unit ?? it.price ?? 0)), 0);
+      const selectedMethod = payMethods.find(m => m.id === selectedPayMethodId);
+      const isCash = selectedMethod?.is_cash_count || String(selectedMethod?.name || '').toLowerCase().includes('cash');
+      const paidAmt = isCash ? (parseFloat(payInputAmount) || totalAmt) : totalAmt;
+
+      // Step 1: Add payment record to the existing order
+      const paymentVals = {
+        pos_order_id: existingOrderId,
+        amount: paidAmt,
+        payment_method_id: selectedPayMethodId,
+        session_id: sessionId || false,
+        company_id: 1,
+      };
+
+      const payResp = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+        method: 'POST', headers,
+        body: JSON.stringify({
+          jsonrpc: '2.0', method: 'call',
+          params: { model: 'pos.payment', method: 'create', args: [paymentVals], kwargs: {} },
+        }),
+      });
+      const payData = await payResp.json();
+      if (payData?.error) {
+        Alert.alert(t.paymentFailed, payData.error?.data?.message || payData.error?.message || 'Payment creation failed');
+        return;
+      }
+
+      // Step 2: Update order amount_paid and state to 'paid'
+      const updateResp = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+        method: 'POST', headers,
+        body: JSON.stringify({
+          jsonrpc: '2.0', method: 'call',
+          params: {
+            model: 'pos.order', method: 'write',
+            args: [[existingOrderId], { amount_paid: paidAmt, amount_return: Math.max(0, paidAmt - totalAmt), state: 'paid' }],
+            kwargs: {},
+          },
+        }),
+      });
+      const updateData = await updateResp.json();
+
+      // Step 3: Try to validate/close the order via action_pos_order_paid
+      try {
+        await fetch(`${baseUrl}/web/dataset/call_kw`, {
+          method: 'POST', headers,
+          body: JSON.stringify({
+            jsonrpc: '2.0', method: 'call',
+            params: { model: 'pos.order', method: 'action_pos_order_paid', args: [[existingOrderId]], kwargs: {} },
+          }),
+        });
+      } catch (_) {}
+
+      // Step 4: Clear cart and navigate
+      try { clearProducts(); } catch (_) {}
+      const isTakeaway = String(route?.params?.order_type || '').toUpperCase() === 'TAKEAWAY';
+      if (isTakeaway) { try { await AsyncStorage.removeItem('active_takeaway_order'); } catch (_) {} }
+
+      setPayModalVisible(false);
+      setPayInputAmount('');
+
+      Alert.alert(t.paymentSuccessful, t.orderClosedSuccess, [{
+        text: t.ok || 'OK',
+        onPress: () => { isTakeaway ? navigation.navigate('Home') : navigation.navigate('TablesScreen'); },
+      }]);
+    } catch (e) {
+      Alert.alert(t.paymentFailed, e?.message || 'Failed to process payment');
+    } finally {
+      setPaying(false);
+    }
+  }, [sessionId, selectedPayMethodId, payInputAmount, payMethods, route?.params?.order_type, navigation, t, clearProducts]);
+
+  // Discount handler — apply discount % to a single product
+  const handleApplyDiscount = useCallback(async (percent) => {
+    if (!discountTargetItem) return;
+    const item = discountTargetItem;
+    const originalPrice = Number(item.original_price_unit ?? item.price_unit ?? item.price ?? 0);
+    const discountedPrice = originalPrice * (1 - percent / 100);
+
+    // Update in local cart
+    addProduct({
+      ...item,
+      price_unit: discountedPrice,
+      price: discountedPrice,
+      original_price_unit: originalPrice,
+      discount_percent: percent,
+    });
+
+    // Sync with Odoo
+    const orderId = orderIdRef.current;
+    if (orderId && String(item.id).startsWith('odoo_line_')) {
+      const lineId = Number(String(item.id).replace('odoo_line_', ''));
+      try {
+        await updateOrderLineOdoo({ lineId, qty: Number(item.qty ?? item.quantity ?? 1), price_unit: originalPrice, discount: percent, orderId });
+      } catch (e) {
+        Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to update discount in Odoo' });
+      }
+    }
+
+    setDiscountModalVisible(false);
+    setDiscountTargetItem(null);
+    Toast.show({ type: 'success', text1: `${percent}% discount applied`, text2: item.name });
+  }, [discountTargetItem, addProduct]);
+
+  // Remove discount from a product
+  const handleRemoveDiscount = useCallback(async () => {
+    if (!discountTargetItem) return;
+    const item = discountTargetItem;
+    const originalPrice = Number(item.original_price_unit ?? item.price_unit ?? item.price ?? 0);
+
+    addProduct({
+      ...item,
+      price_unit: originalPrice,
+      price: originalPrice,
+      original_price_unit: undefined,
+      discount_percent: 0,
+    });
+
+    const orderId = orderIdRef.current;
+    if (orderId && String(item.id).startsWith('odoo_line_')) {
+      const lineId = Number(String(item.id).replace('odoo_line_', ''));
+      try {
+        await updateOrderLineOdoo({ lineId, qty: Number(item.qty ?? item.quantity ?? 1), price_unit: originalPrice, discount: 0, orderId });
+      } catch (e) {}
+    }
+
+    setDiscountModalVisible(false);
+    setDiscountTargetItem(null);
+    Toast.show({ type: 'info', text1: 'Discount removed', text2: item.name });
+  }, [discountTargetItem, addProduct]);
+
+  // Auto-save note to product
+  const handleNoteChange = useCallback((text) => {
+    setNoteText(text);
+    if (!discountTargetItem) return;
+    // Save note to cart item
+    addProduct({ ...discountTargetItem, note: text });
+    // Update discountTargetItem reference so modal stays in sync
+    setDiscountTargetItem(prev => prev ? { ...prev, note: text } : null);
+  }, [discountTargetItem, addProduct]);
 
   // Cache all products
   const [allCachedProducts, setAllCachedProducts] = useState(null);
@@ -813,17 +1070,33 @@ const POSProducts = ({ navigation, route }) => {
       }
     };
 
+    const discountPct = Number(item.discount_percent || 0);
+
     return (
-      <View style={localStyles.orderLineRow}>
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => { setDiscountTargetItem(item); setNoteText(item.note || ''); setDiscountModalVisible(true); }}
+        style={localStyles.orderLineRow}
+      >
         <Text style={[localStyles.orderLineSno, { textAlign: 'center' }]}>{index + 1}.</Text>
         <View style={localStyles.rowDivider} />
         <View style={{ flex: 1 }}>
           <Text style={localStyles.orderLineName}>{item.name || item.full_product_name || item.product_name || (Array.isArray(item.product_id) ? item.product_id[1] : null) || `Product #${item.remoteId || item.id}`}</Text>
-<<<<<<< HEAD
-          <Text style={localStyles.orderLinePrice}>{formatCurrency(unit).replace(/^\w+\s/, '')} {t.each}</Text>
-=======
-          <Text style={localStyles.orderLinePrice}>{formatCurrency(unit).replace(/^\w+\s/, '')} each</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
+          {discountPct > 0 ? (
+            <>
+              <View style={localStyles.discountInfoRow}>
+                <View style={localStyles.discountBadge}>
+                  <Text style={localStyles.discountBadgeText}>-{discountPct}%</Text>
+                </View>
+                <Text style={localStyles.discountOrigPrice}>{formatCurrency(Number(item.original_price_unit)).replace(/^\w+\s/, '')}</Text>
+                <Text style={localStyles.discountArrow}>→</Text>
+                <Text style={localStyles.discountNewPrice}>{formatCurrency(unit).replace(/^\w+\s/, '')} {t.each}</Text>
+              </View>
+            </>
+          ) : (
+            <Text style={localStyles.orderLinePrice}>{formatCurrency(unit).replace(/^\w+\s/, '')} {t.each}</Text>
+          )}
+          {item.note ? <Text style={localStyles.orderLineNote}>📝 {item.note}</Text> : null}
         </View>
         <View style={localStyles.rowDivider} />
         <View style={localStyles.orderLineControls}>
@@ -837,7 +1110,7 @@ const POSProducts = ({ navigation, route }) => {
         </View>
         <View style={localStyles.rowDivider} />
         <Text style={localStyles.orderLineTotal}>{formatCurrency(subtotal)}</Text>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -855,19 +1128,11 @@ const POSProducts = ({ navigation, route }) => {
         {/* Header with order name and user badge */}
         <View style={localStyles.registerHeader}>
           <View style={{ flex: 1 }}>
-<<<<<<< HEAD
             <Text style={localStyles.registerTitle}>{route?.params?.registerName || t.register}</Text>
             {orderInfo?.name && orderInfo.name !== '/' ? <Text style={localStyles.registerOrderName}>{orderInfo.name}</Text> : (orderInfo?.id ? <Text style={localStyles.registerOrderName}>{t.order} #{orderInfo.id}</Text> : null)}
           </View>
           <View style={localStyles.registerUserBadge}>
             <Text style={localStyles.registerUserText}>{route?.params?.userName || t.staff}</Text>
-=======
-            <Text style={localStyles.registerTitle}>{route?.params?.registerName || 'Register'}</Text>
-            {orderInfo?.name && orderInfo.name !== '/' ? <Text style={localStyles.registerOrderName}>{orderInfo.name}</Text> : (orderInfo?.id ? <Text style={localStyles.registerOrderName}>Order #{orderInfo.id}</Text> : null)}
-          </View>
-          <View style={localStyles.registerUserBadge}>
-            <Text style={localStyles.registerUserText}>{route?.params?.userName || 'Staff'}</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           </View>
         </View>
 
@@ -875,19 +1140,11 @@ const POSProducts = ({ navigation, route }) => {
         <View style={localStyles.columnHeader}>
           <Text style={[localStyles.colHeaderText, { width: 24, textAlign: 'center' }]}>#</Text>
           <View style={localStyles.colDivider} />
-<<<<<<< HEAD
           <Text style={[localStyles.colHeaderText, { flex: 1 }]}>{t.items}</Text>
           <View style={localStyles.colDivider} />
           <Text style={[localStyles.colHeaderText, { width: 130, textAlign: 'center' }]}>{t.qty}</Text>
           <View style={localStyles.colDivider} />
           <Text style={[localStyles.colHeaderText, { width: 80, textAlign: 'right' }]}>{t.amount}</Text>
-=======
-          <Text style={[localStyles.colHeaderText, { flex: 1 }]}>Items</Text>
-          <View style={localStyles.colDivider} />
-          <Text style={[localStyles.colHeaderText, { width: 130, textAlign: 'center' }]}>Qty</Text>
-          <View style={localStyles.colDivider} />
-          <Text style={[localStyles.colHeaderText, { width: 80, textAlign: 'right' }]}>Amount</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         </View>
 
         {/* Order lines */}
@@ -899,13 +1156,8 @@ const POSProducts = ({ navigation, route }) => {
             ListEmptyComponent={
               <View style={{ paddingVertical: 40, alignItems: 'center' }}>
                 <Text style={{ fontSize: 36, marginBottom: 8 }}>🛒</Text>
-<<<<<<< HEAD
                 <Text style={{ color: '#8896ab', fontWeight: '600', fontSize: 14 }}>{t.noItemsYet}</Text>
                 <Text style={{ color: '#b0bec5', fontSize: 12, marginTop: 4 }}>{t.tapAddProducts}</Text>
-=======
-                <Text style={{ color: '#8896ab', fontWeight: '600', fontSize: 14 }}>No items yet</Text>
-                <Text style={{ color: '#b0bec5', fontSize: 12, marginTop: 4 }}>Tap "Add Products" to get started</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
               </View>
             }
             contentContainerStyle={{ paddingBottom: 6 }}
@@ -915,11 +1167,7 @@ const POSProducts = ({ navigation, route }) => {
         {/* Total */}
         <View style={localStyles.totalSection}>
           <View style={localStyles.totalRow}>
-<<<<<<< HEAD
             <Text style={localStyles.totalLabel}>{t.total}</Text>
-=======
-            <Text style={localStyles.totalLabel}>Total</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             <Text style={localStyles.totalValue}>{formatCurrency(total)}</Text>
           </View>
         </View>
@@ -937,13 +1185,27 @@ const POSProducts = ({ navigation, route }) => {
               serverName: route?.params?.userName || '', items: cartItems,
               cartOwner: route?.params?.cartOwner || (orderId ? `order_${orderId}` : 'pos_guest'),
               order_type: route?.params?.order_type,
+              sessionId,
+              userId,
             });
           }} style={[localStyles.kitchenBillBtn, cartItems.length === 0 && { opacity: 0.4 }]}>
-<<<<<<< HEAD
             <Text style={localStyles.kitchenBillBtnText}>{t.kitchenBill}</Text>
-=======
-            <Text style={localStyles.kitchenBillBtnText}>Kitchen Bill</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
+          </TouchableOpacity>
+
+          {/* Payment Button */}
+          <TouchableOpacity
+            disabled={cartItems.length === 0}
+            onPress={() => {
+              const totalAmt = cartItems.reduce((s, it) => s + (Number(it.quantity ?? it.qty ?? 1) * Number(it.price_unit ?? it.price ?? 0)), 0);
+              setPayInputAmount(totalAmt.toFixed(3));
+              setPayModalVisible(true);
+            }}
+            style={[localStyles.payNowBtn, cartItems.length === 0 && { opacity: 0.4 }]}
+            activeOpacity={0.85}
+          >
+            <Text style={localStyles.payNowBtnText}>
+              {t.payNow}  💰  {formatCurrency(cartItems.reduce((s, it) => s + (Number(it.quantity ?? it.qty ?? 1) * Number(it.price_unit ?? it.price ?? 0)), 0))}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -970,21 +1232,13 @@ const POSProducts = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
-<<<<<<< HEAD
       <NavigationHeader title={t.register} onBackPress={handleMainBack} logo={false} />
-=======
-      <NavigationHeader title="Register" onBackPress={handleMainBack} logo={false} />
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       <OverlayLoader visible={backLoading} />
       <View style={{ flex: 1, paddingHorizontal: 14, backgroundColor: '#f0f2f8' }}>
         {renderRegisterPanel()}
 
         <View style={localStyles.addProductsBtn}>
-<<<<<<< HEAD
           <Button title={t.addProducts} onPress={() => setShowProducts(true)} />
-=======
-          <Button title="+ Add Products" onPress={() => setShowProducts(true)} />
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         </View>
 
         <Modal visible={showProducts} animationType="slide" onRequestClose={handleCloseProducts}>
@@ -994,11 +1248,7 @@ const POSProducts = ({ navigation, route }) => {
               <TouchableOpacity onPress={handleCloseProducts} style={localStyles.productsBackBtn} activeOpacity={0.7}>
                 <AntDesign name="left" size={22} color="#fff" />
               </TouchableOpacity>
-<<<<<<< HEAD
               <Text style={localStyles.productsHeaderTitle}>{t.products}</Text>
-=======
-              <Text style={localStyles.productsHeaderTitle}>Products</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
               <View style={{ width: 40 }} />
             </View>
 
@@ -1007,11 +1257,7 @@ const POSProducts = ({ navigation, route }) => {
               <View style={localStyles.productsSearchBar}>
                 <AntDesign name="search1" size={18} color="#888" style={{ marginRight: 10 }} />
                 <TextInput
-<<<<<<< HEAD
                   placeholder={t.searchProducts}
-=======
-                  placeholder="Search Products"
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                   placeholderTextColor="#9ca3af"
                   onChangeText={handleSearchChange}
                   value={searchText}
@@ -1025,11 +1271,7 @@ const POSProducts = ({ navigation, route }) => {
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={localStyles.catScroll} keyboardShouldPersistTaps="handled">
                 <TouchableOpacity onPress={() => setSelectedPosCategoryId(null)} style={{ marginRight: 8 }}>
                   <View style={[localStyles.catPill, selectedPosCategoryId === null ? { backgroundColor: '#2E294E', borderColor: '#2E294E' } : { backgroundColor: '#f3f4f6' }]}>
-<<<<<<< HEAD
                     <Text style={[localStyles.catText, { color: selectedPosCategoryId === null ? '#fff' : '#374151' }]}>{t.showAll}</Text>
-=======
-                    <Text style={[localStyles.catText, { color: selectedPosCategoryId === null ? '#fff' : '#374151' }]}>Show All</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                   </View>
                 </TouchableOpacity>
                 {posCategories.length > 0 ? (
@@ -1046,11 +1288,7 @@ const POSProducts = ({ navigation, route }) => {
                     );
                   })
                 ) : (
-<<<<<<< HEAD
                   <Text style={{ color: '#999', fontWeight: '600', fontSize: 13 }}>{t.loadingCategories}</Text>
-=======
-                  <Text style={{ color: '#999', fontWeight: '600', fontSize: 13 }}>Loading categories...</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                 )}
               </ScrollView>
             </View>
@@ -1064,17 +1302,10 @@ const POSProducts = ({ navigation, route }) => {
             <Modal visible={quickAddVisible} transparent animationType="none" onRequestClose={() => setQuickAddVisible(false)}>
               <Pressable style={localStyles.modalBackdrop} onPress={() => setQuickAddVisible(false)}>
                 <Pressable style={localStyles.modalCard} onPress={(e) => e.stopPropagation()}>
-<<<<<<< HEAD
                   <Text style={localStyles.modalTitle}>{t.addItem}</Text>
                   <Text style={localStyles.modalSubtitle}>{quickProduct?.product_name || quickProduct?.name || 'Product'}</Text>
                   <View style={localStyles.qtyRow}>
                     <Text style={localStyles.qtyLabel}>{t.quantity}</Text>
-=======
-                  <Text style={localStyles.modalTitle}>Add Item</Text>
-                  <Text style={localStyles.modalSubtitle}>{quickProduct?.product_name || quickProduct?.name || 'Product'}</Text>
-                  <View style={localStyles.qtyRow}>
-                    <Text style={localStyles.qtyLabel}>Quantity</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                     <View style={localStyles.qtyButtons}>
                       <TouchableOpacity onPress={() => setQuickQty(prev => Math.max(1, prev - 1))} style={localStyles.qtyBtn} activeOpacity={0.6}>
                         <Text style={localStyles.qtyText}>-</Text>
@@ -1088,17 +1319,10 @@ const POSProducts = ({ navigation, route }) => {
                   <View style={localStyles.divider} />
                   <View style={localStyles.actionRow}>
                     <TouchableOpacity onPress={() => setQuickAddVisible(false)} style={localStyles.cancelBtn}>
-<<<<<<< HEAD
                       <Text style={localStyles.cancelText}>{t.cancel}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={confirmQuickAdd} style={[localStyles.addBtn, { backgroundColor: COLORS.primary || '#111827' }]}>
                       <Text style={localStyles.addBtnText}>{t.addToCart}</Text>
-=======
-                      <Text style={localStyles.cancelText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={confirmQuickAdd} style={[localStyles.addBtn, { backgroundColor: COLORS.primary || '#111827' }]}>
-                      <Text style={localStyles.addBtnText}>+ Add</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                     </TouchableOpacity>
                   </View>
                 </Pressable>
@@ -1109,11 +1333,7 @@ const POSProducts = ({ navigation, route }) => {
             {confirmVisible && (
               <View pointerEvents="none" style={localStyles.confirmOverlay}>
                 <View style={localStyles.confirmChip}>
-<<<<<<< HEAD
                   <Text style={localStyles.confirmTitle}>{t.addedToCart}</Text>
-=======
-                  <Text style={localStyles.confirmTitle}>Added to Cart</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                   <Text style={localStyles.confirmSub}>{confirmName} × {confirmQty}</Text>
                 </View>
               </View>
@@ -1126,15 +1346,162 @@ const POSProducts = ({ navigation, route }) => {
               activeOpacity={0.85}
             >
               <AntDesign name="shoppingcart" size={18} color="#fff" style={{ marginRight: 8 }} />
-<<<<<<< HEAD
               <Text style={localStyles.floatingRegisterText}>{t.goToRegister}</Text>
-=======
-              <Text style={localStyles.floatingRegisterText}>Go to Register</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             </TouchableOpacity>
           </SafeAreaView>
         </Modal>
       </View>
+
+      {/* ── Payment Modal ─────────────────────────────────────── */}
+      <Modal visible={payModalVisible} transparent animationType="slide" onRequestClose={() => setPayModalVisible(false)}>
+        <View style={localStyles.payModalOverlay}>
+          <View style={localStyles.payModalCard}>
+            <View style={localStyles.payModalHeader}>
+              <Text style={localStyles.payModalTitle}>{t.selectPaymentMethod}</Text>
+              <TouchableOpacity onPress={() => setPayModalVisible(false)}>
+                <Text style={localStyles.payModalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {(() => {
+              const cartItems = useProductStore.getState().cartItems[useProductStore.getState().currentCustomerId] || [];
+              const totalAmt = cartItems.reduce((s, it) => s + (Number(it.quantity ?? it.qty ?? 1) * Number(it.price_unit ?? it.price ?? 0)), 0);
+              const paidNum = parseFloat(payInputAmount) || 0;
+              const changeAmt = paidNum - totalAmt;
+
+              return (
+                <>
+                  <View style={localStyles.payTotalBox}>
+                    <Text style={localStyles.payTotalLabel}>{t.orderTotal}</Text>
+                    <Text style={localStyles.payTotalValue}>{formatCurrency(totalAmt)}</Text>
+                  </View>
+
+                  {/* Dynamic payment methods from Odoo */}
+                  <ScrollView style={{ marginBottom: 16, maxHeight: payMethods.length > 6 ? 320 : undefined }} showsVerticalScrollIndicator={payMethods.length > 6}>
+                    {payMethods.map(m => {
+                      const isSelected = selectedPayMethodId === m.id;
+                      const icon = m.is_cash_count || String(m.name).toLowerCase().includes('cash') ? '💵'
+                        : String(m.name).toLowerCase().includes('card') ? '💳'
+                        : String(m.name).toLowerCase().includes('bank') ? '🏦'
+                        : '💳';
+                      return (
+                        <TouchableOpacity
+                          key={m.id}
+                          style={[localStyles.payMethodRow, isSelected && localStyles.payMethodRowActive]}
+                          onPress={() => setSelectedPayMethodId(m.id)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={localStyles.payModeIcon}>{icon}</Text>
+                          <Text style={[localStyles.payMethodName, isSelected && localStyles.payMethodNameActive]}>{m.name}</Text>
+                          {isSelected && <Text style={localStyles.payMethodCheck}>✓</Text>}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+
+                  {/* Amount input for cash methods */}
+                  {(() => {
+                    const selMethod = payMethods.find(m => m.id === selectedPayMethodId);
+                    const isCashMethod = selMethod?.is_cash_count || String(selMethod?.name || '').toLowerCase().includes('cash');
+                    if (!isCashMethod) return null;
+                    return (
+                      <View style={{ marginBottom: 20 }}>
+                        <Text style={localStyles.payAmountLabel}>{t.amountReceived}</Text>
+                        <TextInput
+                          style={localStyles.payAmountInput}
+                          value={payInputAmount}
+                          onChangeText={setPayInputAmount}
+                          keyboardType="numeric"
+                          placeholder="0.000"
+                          placeholderTextColor="#bbb"
+                        />
+                        {changeAmt > 0 && <Text style={localStyles.payChangeText}>{t.change}: {changeAmt.toFixed(3)}</Text>}
+                        {changeAmt < 0 && <Text style={localStyles.payRemainingText}>{t.remaining}: {Math.abs(changeAmt).toFixed(3)}</Text>}
+                      </View>
+                    );
+                  })()}
+
+                  <TouchableOpacity
+                    style={[localStyles.payConfirmBtn, paying && { opacity: 0.7 }]}
+                    onPress={() => handlePayNow(cartItems)}
+                    disabled={paying || !selectedPayMethodId || (() => {
+                      const selMethod = payMethods.find(m => m.id === selectedPayMethodId);
+                      const isCashMethod = selMethod?.is_cash_count || String(selMethod?.name || '').toLowerCase().includes('cash');
+                      return isCashMethod && paidNum < totalAmt;
+                    })()}
+                    activeOpacity={0.85}
+                  >
+                    {paying ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <Text style={localStyles.payConfirmText}>{t.pay} - {formatCurrency(totalAmt)}</Text>
+                    )}
+                  </TouchableOpacity>
+                </>
+              );
+            })()}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Discount Modal ─────────────────────────────────────── */}
+      <Modal visible={discountModalVisible} transparent animationType="fade" onRequestClose={() => setDiscountModalVisible(false)}>
+        <Pressable style={localStyles.discountOverlay} onPress={() => setDiscountModalVisible(false)}>
+          <Pressable style={localStyles.discountCard} onPress={(e) => e.stopPropagation()}>
+            <View style={localStyles.discountHeader}>
+              <Text style={localStyles.discountTitle}>Item Options</Text>
+              <TouchableOpacity onPress={() => setDiscountModalVisible(false)}>
+                <Text style={localStyles.discountCloseBtn}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {discountTargetItem && (
+              <Text style={localStyles.discountProductName}>
+                {discountTargetItem.name || discountTargetItem.product_name || 'Product'}
+              </Text>
+            )}
+
+            {/* Notes Section */}
+            <View style={localStyles.noteSection}>
+              <Text style={localStyles.noteSectionTitle}>Notes</Text>
+              <TextInput
+                style={localStyles.noteInput}
+                value={noteText}
+                onChangeText={handleNoteChange}
+                placeholder="Add note for this item..."
+                placeholderTextColor="#bbb"
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
+
+            {/* Discount Section */}
+            <Text style={localStyles.discountSectionTitle}>Discount</Text>
+            <View style={localStyles.discountGrid}>
+              {DISCOUNT_OPTIONS.map(pct => (
+                <TouchableOpacity
+                  key={pct}
+                  style={[localStyles.discountOption, discountTargetItem?.discount_percent === pct && localStyles.discountOptionActive]}
+                  onPress={() => handleApplyDiscount(pct)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[localStyles.discountOptionText, discountTargetItem?.discount_percent === pct && localStyles.discountOptionTextActive]}>{pct}%</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {discountTargetItem?.discount_percent > 0 && (
+              <TouchableOpacity style={localStyles.discountRemoveBtn} onPress={handleRemoveDiscount} activeOpacity={0.7}>
+                <Text style={localStyles.discountRemoveBtnText}>Remove Discount</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity style={localStyles.discountCancelBtn} onPress={() => setDiscountModalVisible(false)}>
+              <Text style={localStyles.discountCancelText}>{t.cancel}</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 };

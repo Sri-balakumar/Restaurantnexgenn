@@ -6,10 +6,7 @@ import { Button } from '@components/common/Button';
 import { useProductStore } from '@stores/product';
 import { fetchCustomersOdoo } from '@api/services/generalApi';
 import { shallow } from 'zustand/shallow';
-<<<<<<< HEAD
 import { useTranslation } from '@hooks';
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
 const errorImage = require('@assets/images/error/error.png');
 
@@ -84,10 +81,7 @@ const CartRow = memo(({ itemId }) => {
 const ITEM_HEIGHT = 69;
 
 const POSCartSummary = ({ navigation, route }) => {
-<<<<<<< HEAD
   const { t } = useTranslation();
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   const {
     openingAmount, sessionId, registerId, registerName, userId, userName
   } = route?.params || {};
@@ -156,11 +150,7 @@ const POSCartSummary = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.safe}>
-<<<<<<< HEAD
       <NavigationHeader title={t.cart} onBackPress={() => navigation.goBack()} />
-=======
-      <NavigationHeader title="Cart" onBackPress={() => navigation.goBack()} />
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       <View style={styles.container}>
         {itemIds.length > 0 ? (
           <FlatList
@@ -173,38 +163,22 @@ const POSCartSummary = ({ navigation, route }) => {
             windowSize={7}
           />
         ) : (
-<<<<<<< HEAD
           <Text style={styles.empty}>{t.cartIsEmpty}</Text>
         )}
 
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>{t.total}</Text>
-=======
-          <Text style={styles.empty}>Cart is empty</Text>
-        )}
-
-        <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>Total</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           <Text style={styles.totalValue}>{total.toFixed(2)}</Text>
         </View>
 
         <View style={styles.checkoutWrap}>
-<<<<<<< HEAD
           <Button title={t.checkoutPayment} onPress={handleCheckout} />
-=======
-          <Button title="Checkout / Payment" onPress={handleCheckout} />
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         </View>
 
         <Modal visible={customerModal} animationType="slide" transparent>
           <View style={styles.modalBg}>
             <View style={styles.modalContent}>
-<<<<<<< HEAD
               <Text style={styles.modalTitle}>{t.selectCustomer}</Text>
-=======
-              <Text style={styles.modalTitle}>Select Customer</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
               {loadingCustomers ? (
                 <ActivityIndicator size="large" color="#444" />
               ) : (
@@ -218,11 +192,7 @@ const POSCartSummary = ({ navigation, route }) => {
                   )}
                 />
               )}
-<<<<<<< HEAD
               <Button title={t.close} onPress={() => setCustomerModal(false)} />
-=======
-              <Button title="Close" onPress={() => setCustomerModal(false)} />
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             </View>
           </View>
         </Modal>

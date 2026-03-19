@@ -9,10 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '@stores/auth';
 import { clearProductCache } from '@api/services/generalApi';
 import { FONT_FAMILY } from '@constants/theme';
-<<<<<<< HEAD
 import { useTranslation } from '@hooks';
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
 const Tab = createBottomTabNavigator();
 const ORANGE = '#F47B20';
@@ -21,7 +18,6 @@ const DummyScreen = () => null;
 
 const AppNavigator = () => {
   const logoutStore = useAuthStore((state) => state.logout);
-<<<<<<< HEAD
   const { t } = useTranslation();
 
   const handleLogout = (navigation) => {
@@ -29,14 +25,6 @@ const AppNavigator = () => {
       { text: t.cancel, style: 'cancel' },
       {
         text: t.logout,
-=======
-
-  const handleLogout = (navigation) => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Logout',
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         style: 'destructive',
         onPress: async () => {
           clearProductCache();
@@ -79,11 +67,7 @@ const AppNavigator = () => {
             <TabBarIcon
               focused={focused}
               iconComponent={require('@assets/icons/bottom_tabs/home.png')}
-<<<<<<< HEAD
               label={t.home}
-=======
-              label="Home"
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             />
         }}
       />
@@ -95,11 +79,7 @@ const AppNavigator = () => {
             <TabBarIcon
               focused={focused}
               iconComponent={require('@assets/icons/bottom_tabs/profile.png')}
-<<<<<<< HEAD
               label={t.profile}
-=======
-              label="Profile"
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             />
         }}
       />
@@ -112,11 +92,7 @@ const AppNavigator = () => {
               <View style={{ alignItems: 'center', justifyContent: 'center', width: 48, height: 30, borderRadius: 15, backgroundColor: focused ? 'rgba(244,123,32,0.15)' : 'transparent' }}>
                 <MaterialIcons name="logout" size={22} color={focused ? ORANGE : 'rgba(255,255,255,0.6)'} />
               </View>
-<<<<<<< HEAD
               <Text style={{ color: focused ? ORANGE : 'rgba(255,255,255,0.55)', fontSize: 11, fontFamily: FONT_FAMILY.urbanistMedium, marginTop: 3, letterSpacing: 0.3 }} numberOfLines={1}>{t.logout}</Text>
-=======
-              <Text style={{ color: focused ? ORANGE : 'rgba(255,255,255,0.55)', fontSize: 11, fontFamily: FONT_FAMILY.urbanistMedium, marginTop: 3, letterSpacing: 0.3 }} numberOfLines={1}>Logout</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             </View>
           ),
         }}

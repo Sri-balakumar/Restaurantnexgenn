@@ -8,21 +8,14 @@ import { NavigationHeader } from '@components/Header';
 // 🔹 changed this line
 import { fetchCustomersOdoo } from '@api/services/generalApi';
 
-<<<<<<< HEAD
 import { useDataFetching, useDebouncedSearch, useTranslation } from '@hooks';
-=======
-import { useDataFetching, useDebouncedSearch } from '@hooks';
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 import Text from '@components/Text';
 import { TouchableOpacity, ActivityIndicator, View, Image } from 'react-native';
 import { COLORS, FONT_FAMILY } from '@constants/theme';
 import { Button, FABButton } from '@components/common/Button';
 
 const CustomerScreen = ({ navigation, route }) => {
-<<<<<<< HEAD
   const { t } = useTranslation();
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   const isFocused = useIsFocused();
   const { data, loading, fetchData, fetchMoreData } = useDataFetching(fetchCustomersOdoo);
 
@@ -119,15 +112,9 @@ const CustomerScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView>
-<<<<<<< HEAD
       <NavigationHeader title={t.customers} onBackPress={() => navigation.goBack()} />
       <SearchContainer
         placeholder={t.searchCustomers}
-=======
-      <NavigationHeader title="Customers" onBackPress={() => navigation.goBack()} />
-      <SearchContainer
-        placeholder="Search Customers"
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         onChangeText={handleSearchTextChange}
       />
       <RoundedContainer>

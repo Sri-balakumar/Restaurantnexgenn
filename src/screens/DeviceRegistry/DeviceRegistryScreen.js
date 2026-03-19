@@ -15,31 +15,19 @@ import { NavigationHeader } from '@components/Header';
 import { OverlayLoader } from '@components/Loader';
 import Text from '@components/Text';
 import { FONT_FAMILY } from '@constants/theme';
-<<<<<<< HEAD
 import { useTranslation } from '@hooks';
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 import { fetchDeviceRegistry } from '@api/services/deviceRegistryApi';
 
 const PURPLE = '#875a7b';
 const AUTO_REFRESH_MS = 30000; // refresh every 30 seconds while screen is open
 
 // ─── Device card ─────────────────────────────────────────────────────────────
-<<<<<<< HEAD
 const DeviceCard = ({ item, isCurrent, t }) => {
   const shortId = item.device_id
     ? `${item.device_id.substring(0, 8)}...`
     : t.na;
 
   let lastLogin = t.never;
-=======
-const DeviceCard = ({ item, isCurrent }) => {
-  const shortId = item.device_id
-    ? `${item.device_id.substring(0, 8)}...`
-    : 'N/A';
-
-  let lastLogin = 'Never';
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   try {
     if (item.last_login) {
       lastLogin = format(new Date(item.last_login), 'dd MMM yyyy  HH:mm');
@@ -53,26 +41,17 @@ const DeviceCard = ({ item, isCurrent }) => {
       <View style={styles.cardContent}>
         <View style={styles.row}>
           <Text style={styles.deviceName} numberOfLines={1}>
-<<<<<<< HEAD
             {item.device_name || t.unknownDevice}
           </Text>
           {isCurrent && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{t.thisDevice}</Text>
-=======
-            {item.device_name || 'Unknown Device'}
-          </Text>
-          {isCurrent && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>THIS DEVICE</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             </View>
           )}
         </View>
 
         <View style={styles.row}>
           <View style={styles.infoChip}>
-<<<<<<< HEAD
             <Text style={styles.chipLabel}>{t.uuid}</Text>
             <Text style={styles.chipValue}>{shortId}</Text>
           </View>
@@ -80,34 +59,17 @@ const DeviceCard = ({ item, isCurrent }) => {
             <Text style={styles.chipLabel}>{t.database}</Text>
             <Text style={styles.chipValue} numberOfLines={1}>
               {item.database_name || t.na}
-=======
-            <Text style={styles.chipLabel}>UUID</Text>
-            <Text style={styles.chipValue}>{shortId}</Text>
-          </View>
-          <View style={styles.infoChip}>
-            <Text style={styles.chipLabel}>Database</Text>
-            <Text style={styles.chipValue} numberOfLines={1}>
-              {item.database_name || 'N/A'}
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             </Text>
           </View>
         </View>
 
         <View style={styles.metaRow}>
           <Text style={styles.metaText} numberOfLines={1}>
-<<<<<<< HEAD
             🌐 {item.base_url || t.na}
           </Text>
         </View>
         <View style={styles.metaRow}>
           <Text style={styles.metaText}>🕒 {t.lastLogin} {lastLogin}</Text>
-=======
-            🌐 {item.base_url || 'N/A'}
-          </Text>
-        </View>
-        <View style={styles.metaRow}>
-          <Text style={styles.metaText}>🕒 Last login: {lastLogin}</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         </View>
       </View>
     </View>
@@ -125,10 +87,7 @@ const StatusState = ({ icon, message, sub }) => (
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
 const DeviceRegistryScreen = ({ navigation }) => {
-<<<<<<< HEAD
   const { t } = useTranslation();
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -177,10 +136,7 @@ const DeviceRegistryScreen = ({ navigation }) => {
     <DeviceCard
       item={item}
       isCurrent={!!currentUuid && item.device_id === currentUuid}
-<<<<<<< HEAD
       t={t}
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
     />
   );
 
@@ -191,11 +147,7 @@ const DeviceRegistryScreen = ({ navigation }) => {
       return (
         <StatusState
           icon="⚠️"
-<<<<<<< HEAD
           message={t.couldNotLoadDevices}
-=======
-          message="Could not load devices"
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           sub={errorMsg}
         />
       );
@@ -204,11 +156,7 @@ const DeviceRegistryScreen = ({ navigation }) => {
     return (
       <StatusState
         icon="📋"
-<<<<<<< HEAD
         message={t.noRegisteredDevices}
-=======
-        message="No registered devices found."
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       />
     );
   };
@@ -217,11 +165,7 @@ const DeviceRegistryScreen = ({ navigation }) => {
     <SafeAreaView>
       <OverlayLoader visible={loading} />
       <NavigationHeader
-<<<<<<< HEAD
         title={t.deviceRegistry}
-=======
-        title="Device Registry"
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         onBackPress={() => navigation.goBack()}
         refreshIcon
         refreshPress={() => loadDevices(true)}

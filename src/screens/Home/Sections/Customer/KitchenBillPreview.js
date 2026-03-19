@@ -5,19 +5,6 @@
  * Supports:
  *   - "Print Add-ons"  -> only NEW items since last print (delta)
  *   - "Print Full Order" -> all items
- *
- * ARCHITECTURE:
- *   This screen  --> kotService.printKot()  --> Odoo  --> KOT Printer
- *   APK never talks to printer. Odoo handles ESC/POS + TCP.
- *
- * NAVIGATION PARAMS:
- *   items       - Array of cart items [{ id, name, quantity/qty, note, product_id, price_unit }]
- *   orderId     - Odoo pos.order ID (number, optional)
- *   orderName   - e.g. "Order 00012"
- *   tableName   - e.g. "T 3"
- *   serverName  - waiter name
- *   order_type  - "DINEIN" | "TAKEAWAY" | null
- *   guest_count - number
  */
 
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
@@ -35,13 +22,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import kotService from '../../../../api/services/kotService';
-<<<<<<< HEAD
 import useTranslation from '../../../../hooks/useTranslation';
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
 // ── Snapshot store (tracks what was already printed) ───────────
-// Simple in-memory store. Replace with Zustand/AsyncStorage if needed.
 const _snapshots = {};
 
 function getSnapshot(key) {
@@ -82,10 +65,7 @@ function getDelta(key, currentItems) {
 // ── Component ──────────────────────────────────────────────────
 
 const KitchenBillPreview = ({ navigation, route }) => {
-<<<<<<< HEAD
   const { t } = useTranslation();
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   const {
     items = [],
     orderId,
@@ -96,7 +76,7 @@ const KitchenBillPreview = ({ navigation, route }) => {
     guest_count = 0,
   } = route?.params || {};
 
-  const [printingMode, setPrintingMode] = useState(null); // null | 'addons' | 'full'
+  const [printingMode, setPrintingMode] = useState(null);
   const [userName, setUserName] = useState(serverName);
 
   // ── Resolve logged-in user name ──────────────────────────────
@@ -108,8 +88,6 @@ const KitchenBillPreview = ({ navigation, route }) => {
         const name =
           ud?.related_profile?.name || ud?.user_name || ud?.name || serverName || '';
         if (name) setUserName(name);
-
-        // kotService now reads session from AsyncStorage automatically
       } catch (e) {
         console.warn('[KOT] setup error:', e.message);
       }
@@ -120,11 +98,11 @@ const KitchenBillPreview = ({ navigation, route }) => {
   const snapshotKey = orderId || orderName || null;
 
   useEffect(() => {
-    const isTakeaway =
+    const isTakeawayCheck =
       String(order_type || '').toUpperCase() === 'TAKEAWAY' ||
       String(order_type || '').toUpperCase() === 'TAKEOUT';
 
-    if (isTakeaway && snapshotKey && !getSnapshot(snapshotKey).length && items.length) {
+    if (isTakeawayCheck && snapshotKey && !getSnapshot(snapshotKey).length && items.length) {
       setSnapshot(snapshotKey, items);
     }
   }, [orderId, orderName, order_type, items.length]);
@@ -159,17 +137,10 @@ const KitchenBillPreview = ({ navigation, route }) => {
     String(order_type || '').toUpperCase() === 'TAKEOUT';
 
   const orderTypeLabel = isTakeaway
-<<<<<<< HEAD
     ? t.takeout
     : order_type
       ? String(order_type).charAt(0).toUpperCase() + String(order_type).slice(1).toLowerCase()
       : t.dineIn;
-=======
-    ? 'Takeout'
-    : order_type
-      ? String(order_type).charAt(0).toUpperCase() + String(order_type).slice(1).toLowerCase()
-      : 'Dine In';
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
   // ── Print handler ────────────────────────────────────────────
   const handlePrint = useCallback(
@@ -181,11 +152,7 @@ const KitchenBillPreview = ({ navigation, route }) => {
           : mapped;
 
         if (!printItems.length) {
-<<<<<<< HEAD
           Alert.alert(t.addItem, t.nothingToPrint);
-=======
-          Alert.alert('No Items', 'Nothing to print.');
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           return;
         }
 
@@ -206,40 +173,20 @@ const KitchenBillPreview = ({ navigation, route }) => {
 
         const result = await kotService.printKot(kotData);
 
-        // Save snapshot after successful print
         if (snapshotKey) setSnapshot(snapshotKey, items);
 
         if (result && result.success !== false) {
-<<<<<<< HEAD
           Alert.alert(t.kotPrinted, t.kotSentToPrinter);
-=======
-          Alert.alert('KOT Printed', 'Kitchen Order Ticket sent to printer.');
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         } else {
           const errMsg = result?.error || 'Failed to print KOT';
           if (errMsg.includes("doesn't exist") || errMsg.includes('does not exist')) {
-            Alert.alert(
-<<<<<<< HEAD
-              t.moduleNotInstalled,
-              t.kotModuleNotInstalled,
-            );
+            Alert.alert(t.moduleNotInstalled, t.kotModuleNotInstalled);
           } else {
             Alert.alert(t.printError, errMsg);
           }
         }
       } catch (e) {
         Alert.alert(t.printError, e.message || 'Failed to print KOT');
-=======
-              'Module Not Installed',
-              'The pos_kot_print module is not installed on this Odoo server.',
-            );
-          } else {
-            Alert.alert('Print Error', errMsg);
-          }
-        }
-      } catch (e) {
-        Alert.alert('Print Error', e.message || 'Failed to print KOT');
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       } finally {
         setPrintingMode(null);
       }
@@ -266,15 +213,9 @@ const KitchenBillPreview = ({ navigation, route }) => {
       {/* Header */}
       <View style={s.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
-<<<<<<< HEAD
           <Text style={s.backText}>{t.back}</Text>
         </TouchableOpacity>
         <Text style={s.headerTitle}>{t.kitchenBillTitle}</Text>
-=======
-          <Text style={s.backText}>Back</Text>
-        </TouchableOpacity>
-        <Text style={s.headerTitle}>Kitchen Bill</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         <View style={{ width: 60 }} />
       </View>
 
@@ -284,11 +225,7 @@ const KitchenBillPreview = ({ navigation, route }) => {
           <View style={s.cardHeader}>
             <View style={{ flex: 1 }}>
               <Text style={s.orderTitle}>
-<<<<<<< HEAD
                 {orderName && orderName !== '/' ? orderName : orderId ? `${t.order} #${orderId}` : t.order}
-=======
-                {orderName && orderName !== '/' ? orderName : orderId ? `Order #${orderId}` : 'Order'}
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
               </Text>
               {orderId && orderName && orderName !== '/' ? (
                 <Text style={s.orderId}>#{orderId}</Text>
@@ -296,11 +233,7 @@ const KitchenBillPreview = ({ navigation, route }) => {
             </View>
             {isTakeaway && (
               <View style={s.typeBadge}>
-<<<<<<< HEAD
                 <Text style={s.typeBadgeText}>{t.takeout}</Text>
-=======
-                <Text style={s.typeBadgeText}>Takeout</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
               </View>
             )}
           </View>
@@ -308,30 +241,18 @@ const KitchenBillPreview = ({ navigation, route }) => {
           <View style={s.infoGrid}>
             {tableName ? (
               <View style={s.infoItem}>
-<<<<<<< HEAD
                 <Text style={s.infoLabel}>{t.table}</Text>
-=======
-                <Text style={s.infoLabel}>TABLE</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                 <Text style={s.infoValue}>{tableName}</Text>
               </View>
             ) : null}
             {userName ? (
               <View style={s.infoItem}>
-<<<<<<< HEAD
                 <Text style={s.infoLabel}>{t.server}</Text>
-=======
-                <Text style={s.infoLabel}>SERVER</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                 <Text style={s.infoValue}>{userName}</Text>
               </View>
             ) : null}
             <View style={s.infoItem}>
-<<<<<<< HEAD
               <Text style={s.infoLabel}>{t.items}</Text>
-=======
-              <Text style={s.infoLabel}>ITEMS</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
               <Text style={s.infoValue}>{mapped.length}</Text>
             </View>
           </View>
@@ -341,11 +262,7 @@ const KitchenBillPreview = ({ navigation, route }) => {
         <View style={s.card}>
           <View style={s.sectionHeader}>
             <View style={[s.dot, { backgroundColor: '#F47B20' }]} />
-<<<<<<< HEAD
             <Text style={s.sectionTitle}>{t.newItems}</Text>
-=======
-            <Text style={s.sectionTitle}>New Items</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             {deltaItems.length > 0 && (
               <View style={s.countBadge}>
                 <Text style={s.countBadgeText}>{deltaItems.length}</Text>
@@ -356,11 +273,7 @@ const KitchenBillPreview = ({ navigation, route }) => {
             deltaItems.map(renderLine)
           ) : (
             <View style={s.emptyWrap}>
-<<<<<<< HEAD
               <Text style={s.emptyText}>{t.noNewItemsSincePrint}</Text>
-=======
-              <Text style={s.emptyText}>No new items since last print</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             </View>
           )}
         </View>
@@ -369,11 +282,7 @@ const KitchenBillPreview = ({ navigation, route }) => {
         <View style={s.card}>
           <View style={s.sectionHeader}>
             <View style={[s.dot, { backgroundColor: '#7c3aed' }]} />
-<<<<<<< HEAD
             <Text style={s.sectionTitle}>{t.fullOrder}</Text>
-=======
-            <Text style={s.sectionTitle}>Full Order</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             <View style={[s.countBadge, { backgroundColor: '#f3f0ff' }]}>
               <Text style={[s.countBadgeText, { color: '#7c3aed' }]}>{mapped.length}</Text>
             </View>
@@ -393,11 +302,7 @@ const KitchenBillPreview = ({ navigation, route }) => {
           {printingMode === 'addons' ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
-<<<<<<< HEAD
             <Text style={s.primaryBtnText}>{t.printAddons}</Text>
-=======
-            <Text style={s.primaryBtnText}>Print Add-ons</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           )}
         </TouchableOpacity>
 
@@ -410,11 +315,7 @@ const KitchenBillPreview = ({ navigation, route }) => {
           {printingMode === 'full' ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
-<<<<<<< HEAD
             <Text style={s.secondaryBtnText}>{t.printFullOrder}</Text>
-=======
-            <Text style={s.secondaryBtnText}>Print Full Order</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           )}
         </TouchableOpacity>
       </View>
@@ -431,7 +332,6 @@ const s = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 16 },
 
-  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -450,7 +350,6 @@ const s = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // Card
   card: {
     backgroundColor: '#fff',
     borderRadius: 18,
@@ -481,7 +380,6 @@ const s = StyleSheet.create({
   },
   typeBadgeText: { fontSize: 12, fontWeight: '800', color: '#F47B20' },
 
-  // Info grid
   infoGrid: { flexDirection: 'row', gap: 12 },
   infoItem: {
     flex: 1,
@@ -499,7 +397,6 @@ const s = StyleSheet.create({
   },
   infoValue: { fontSize: 14, fontWeight: '800', color: '#1a1a2e' },
 
-  // Sections
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -520,7 +417,6 @@ const s = StyleSheet.create({
   emptyWrap: { paddingVertical: 20, alignItems: 'center' },
   emptyText: { color: '#8896ab', fontWeight: '600', fontSize: 13 },
 
-  // Line items
   lineRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -542,7 +438,6 @@ const s = StyleSheet.create({
   lineName: { fontSize: 14, fontWeight: '700', color: '#1a1a2e' },
   lineNote: { color: '#8896ab', fontSize: 12, marginTop: 2 },
 
-  // Bottom bar
   bottomBar: {
     padding: 16,
     paddingBottom: 24,

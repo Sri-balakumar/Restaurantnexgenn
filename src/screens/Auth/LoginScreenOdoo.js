@@ -11,10 +11,7 @@ import {
   ActivityIndicator,
   ScrollView,
   Switch,
-<<<<<<< HEAD
   I18nManager,
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 } from "react-native";
 import { COLORS, FONT_FAMILY } from "@constants/theme";
 import { LogBox } from "react-native";
@@ -29,11 +26,8 @@ import { showToastMessage } from "@components/Toast";
 import API_BASE_URL from "@api/config";
 import ODOO_DEFAULTS, { DEFAULT_ODOO_BASE_URL, DEFAULT_ODOO_DB, DEV_ODOO_USERNAME, DEV_ODOO_PASSWORD } from "@api/config/odooConfig";
 import { clearProductCache } from "@api/services/generalApi";
-<<<<<<< HEAD
 import { useTranslation } from "@hooks";
 import { useLanguageStore } from "@stores/language";
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
 LogBox.ignoreAllLogs();
 
@@ -43,12 +37,9 @@ const ORANGE = '#F47B20';
 const LoginScreenOdoo = () => {
   const navigation = useNavigation();
   const setUser = useAuthStore((state) => state.login);
-<<<<<<< HEAD
   const { t, language, isRTL } = useTranslation();
   const setLanguage = useLanguageStore((state) => state.setLanguage);
   const loadLanguage = useLanguageStore((state) => state.loadLanguage);
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -56,15 +47,11 @@ const LoginScreenOdoo = () => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [rememberMe, setRememberMe] = useState(false);
-<<<<<<< HEAD
 
   // Load saved language preference on mount
   useEffect(() => {
     loadLanguage();
   }, []);
-=======
-  const [hasSavedCreds, setHasSavedCreds] = useState(false);
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
   // Restore toggle state and auto-fill credentials on mount
   useEffect(() => {
@@ -97,7 +84,6 @@ const LoginScreenOdoo = () => {
     Keyboard.dismiss();
     let valid = true;
     const errs = {};
-<<<<<<< HEAD
     if (!username.trim()) { errs.username = t.usernameRequired; valid = false; }
     if (!password) { errs.password = t.passwordRequired; valid = false; }
     setErrors(errs);
@@ -105,15 +91,6 @@ const LoginScreenOdoo = () => {
   };
 
   const doLogin = async () => {
-=======
-    if (!username.trim()) { errs.username = 'Username is required'; valid = false; }
-    if (!password) { errs.password = 'Password is required'; valid = false; }
-    setErrors(errs);
-    if (valid) login();
-  };
-
-  const login = async () => {
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
     setLoading(true);
     try {
       const deviceUrl = await AsyncStorage.getItem('device_server_url');
@@ -180,11 +157,7 @@ const LoginScreenOdoo = () => {
         setUser(userData);
         navigation.navigate("AppNavigator");
       } else {
-<<<<<<< HEAD
         showToastMessage(t.invalidCredentials);
-=======
-        showToastMessage("Invalid credentials. Check your username and password.");
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       }
     } catch (error) {
       showToastMessage(`Error! ${error.message}`);
@@ -193,12 +166,9 @@ const LoginScreenOdoo = () => {
     }
   };
 
-<<<<<<< HEAD
   const rtlStyle = isRTL ? { textAlign: 'right', writingDirection: 'rtl' } : {};
   const rtlRowStyle = isRTL ? { flexDirection: 'row-reverse' } : {};
 
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <SafeAreaView backgroundColor={NAVY} style={{ flex: 1 }}>
@@ -212,7 +182,6 @@ const LoginScreenOdoo = () => {
             style={styles.logo}
             resizeMode="contain"
           />
-<<<<<<< HEAD
           <TouchableOpacity
             style={styles.gearBtn}
             onPress={() => navigation.navigate('DeviceSetup')}
@@ -238,8 +207,6 @@ const LoginScreenOdoo = () => {
               <Text style={[styles.langBtnText, language === 'ar' && styles.langBtnTextActive]}>عربي</Text>
             </TouchableOpacity>
           </View>
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         </View>
 
         {/* ── White card ── */}
@@ -249,7 +216,6 @@ const LoginScreenOdoo = () => {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.cardContent}
           >
-<<<<<<< HEAD
             <Text style={[styles.title, rtlStyle]}>{t.welcomeBack}</Text>
             <Text style={[styles.subtitle, rtlStyle]}>{t.signInToContinue}</Text>
 
@@ -263,37 +229,17 @@ const LoginScreenOdoo = () => {
                   value={username}
                   onChangeText={(v) => { setUsername(v); setErrors((e) => ({ ...e, username: null })); }}
                   placeholder={t.enterUsername}
-=======
-            <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>Sign in to continue</Text>
-
-            {/* Username */}
-            <View style={styles.fieldWrap}>
-              <Text style={styles.label}>Username or Email</Text>
-              <View style={[styles.inputBox, errors.username && styles.inputError]}>
-                <Text style={styles.inputIcon}>👤</Text>
-                <RNTextInput
-                  style={styles.input}
-                  value={username}
-                  onChangeText={(t) => { setUsername(t); setErrors((e) => ({ ...e, username: null })); }}
-                  placeholder="Enter username or email"
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                   placeholderTextColor="#bbb"
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="email-address"
                 />
               </View>
-<<<<<<< HEAD
               {errors.username ? <Text style={[styles.errorText, rtlStyle]}>{errors.username}</Text> : null}
-=======
-              {errors.username ? <Text style={styles.errorText}>{errors.username}</Text> : null}
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             </View>
 
             {/* Password */}
             <View style={styles.fieldWrap}>
-<<<<<<< HEAD
               <Text style={[styles.label, rtlStyle]}>{t.password}</Text>
               <View style={[styles.inputBox, errors.password && styles.inputError, rtlRowStyle]}>
                 <Text style={styles.inputIcon}>🔒</Text>
@@ -302,16 +248,6 @@ const LoginScreenOdoo = () => {
                   value={password}
                   onChangeText={(v) => { setPassword(v); setErrors((e) => ({ ...e, password: null })); }}
                   placeholder={t.enterPassword}
-=======
-              <Text style={styles.label}>Password</Text>
-              <View style={[styles.inputBox, errors.password && styles.inputError]}>
-                <Text style={styles.inputIcon}>🔒</Text>
-                <RNTextInput
-                  style={styles.input}
-                  value={password}
-                  onChangeText={(t) => { setPassword(t); setErrors((e) => ({ ...e, password: null })); }}
-                  placeholder="Enter password"
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                   placeholderTextColor="#bbb"
                   secureTextEntry={!showPassword}
                 />
@@ -319,21 +255,12 @@ const LoginScreenOdoo = () => {
                   <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Text>
                 </TouchableOpacity>
               </View>
-<<<<<<< HEAD
               {errors.password ? <Text style={[styles.errorText, rtlStyle]}>{errors.password}</Text> : null}
             </View>
 
             {/* Autofill Credentials toggle */}
             <View style={[styles.rememberRow, rtlRowStyle]}>
               <Text style={[styles.rememberText, rtlStyle]}>{t.autofillCredentials}</Text>
-=======
-              {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
-            </View>
-
-            {/* Autofill Credentials toggle */}
-            <View style={styles.rememberRow}>
-              <Text style={styles.rememberText}>Autofill Credentials</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
               <Switch
                 value={rememberMe}
                 onValueChange={async (val) => {
@@ -451,21 +378,12 @@ const LoginScreenOdoo = () => {
                       }
 
                       if (filledUser || filledPass) {
-<<<<<<< HEAD
                         showToastMessage(t.credentialsFilled);
                       } else {
                         showToastMessage(t.noSavedCredentials);
                       }
                     } catch (_) {
                       showToastMessage(t.couldNotFetch);
-=======
-                        showToastMessage('Credentials filled successfully');
-                      } else {
-                        showToastMessage('No saved credentials found. Please login once first.');
-                      }
-                    } catch (_) {
-                      showToastMessage('Could not fetch credentials. Please login manually.');
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                     }
                   } else {
                     // Clear fields when toggled OFF
@@ -488,11 +406,7 @@ const LoginScreenOdoo = () => {
             >
               {loading
                 ? <ActivityIndicator color="#fff" />
-<<<<<<< HEAD
                 : <Text style={styles.loginBtnText}>{t.login}</Text>
-=======
-                : <Text style={styles.loginBtnText}>Login</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
               }
             </TouchableOpacity>
 
@@ -626,7 +540,6 @@ const styles = StyleSheet.create({
     fontFamily: FONT_FAMILY.urbanistBold,
     letterSpacing: 0.5,
   },
-<<<<<<< HEAD
   gearBtn: {
     position: 'absolute',
     top: 16,
@@ -667,8 +580,6 @@ const styles = StyleSheet.create({
   langBtnTextActive: {
     color: '#fff',
   },
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 });
 
 export default LoginScreenOdoo;

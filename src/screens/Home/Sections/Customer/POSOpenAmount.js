@@ -7,26 +7,17 @@ const OPENED_REGISTER_KEY = 'opened_register';
 import { SafeAreaView } from '@components/containers';
 import { NavigationHeader } from '@components/Header';
 import { Button } from '@components/common/Button';
-<<<<<<< HEAD
 import { useTranslation } from '@hooks';
 
 const POSOpenAmount = ({ navigation, route }) => {
   const { t } = useTranslation();
-=======
-
-const POSOpenAmount = ({ navigation, route }) => {
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   const [amount, setAmount] = useState('0.00');
   const register = route?.params?.register || null;
 
   const handleOpen = async () => {
     const parsed = parseFloat(amount);
     if (!parsed || parsed <= 0) {
-<<<<<<< HEAD
       Alert.alert(t.invalidAmount, t.invalidAmountMsg);
-=======
-      Alert.alert('Invalid Amount', 'Please enter a valid opening amount greater than zero.');
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       return;
     }
 
@@ -71,17 +62,10 @@ const POSOpenAmount = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-<<<<<<< HEAD
       <NavigationHeader title={t.openingAmount} onBackPress={() => navigation.goBack()} />
       <View style={styles.content}>
         <Text style={styles.title}>{t.enterOpeningAmount}</Text>
         <Text style={styles.subtitle}>{t.openingAmountDesc}</Text>
-=======
-      <NavigationHeader title="Opening Amount" onBackPress={() => navigation.goBack()} />
-      <View style={styles.content}>
-        <Text style={styles.title}>Enter Opening Amount</Text>
-        <Text style={styles.subtitle}>This amount will be used as the register opening cash.</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
         <TextInput
           keyboardType="numeric"
@@ -91,11 +75,7 @@ const POSOpenAmount = ({ navigation, route }) => {
         />
 
         <View style={{ marginTop: 20, alignItems: 'center' }}>
-<<<<<<< HEAD
           <Button title={t.open} onPress={handleOpen} style={styles.openBtn} textStyle={{ fontSize: 18 }} />
-=======
-          <Button title="Open" onPress={handleOpen} style={styles.openBtn} textStyle={{ fontSize: 18 }} />
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         </View>
       </View>
     </SafeAreaView>

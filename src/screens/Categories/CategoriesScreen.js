@@ -3,11 +3,7 @@
 //import React, { useEffect, useCallback } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { NavigationHeader } from "@components/Header";
-<<<<<<< HEAD
 import { useDataFetching, useTranslation } from '@hooks';
-=======
-import { useDataFetching } from '@hooks';
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 import { fetchCategoriesOdoo } from "@api/services/generalApi"; // Correct import
 import { SafeAreaView } from "@components/containers";
 import { CategoryList } from "@components/Categories"; // Component to render each category
@@ -16,10 +12,7 @@ import { FlashList } from "@shopify/flash-list"; // FlashList for optimized scro
 
 
 const CategoriesScreen = ({ navigation }) => {
-<<<<<<< HEAD
   const { t } = useTranslation();
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   // Fetch categories using useDataFetching hook
   const { data, loading, fetchData, fetchMoreData } = useDataFetching(fetchCategoriesOdoo);
 
@@ -47,20 +40,12 @@ const CategoriesScreen = ({ navigation }) => {
 
   // Show empty state if no categories are available
   const renderEmptyState = () => (
-<<<<<<< HEAD
     <EmptyState imageSource={require("@assets/images/EmptyData/empty_data.png")} message={t.noCategoriesAvailable} />
-=======
-    <EmptyState imageSource={require("@assets/images/EmptyData/empty_data.png")} message={"No categories available"} />
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   );
 
   return (
     <SafeAreaView>
-<<<<<<< HEAD
       <NavigationHeader title={t.categories} onBackPress={() => navigation.goBack()} />
-=======
-      <NavigationHeader title="Categories" onBackPress={() => navigation.goBack()} />
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       {loading ? (
         <ActivityIndicator size="large" color="#0000ff" />
       ) : (

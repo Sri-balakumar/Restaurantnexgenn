@@ -3,16 +3,10 @@ import useDebouncedSearch from "./useDebouncedSearch";
 import useDropdownFetching from "./useDropdownFetching";
 import useLoader from "./useLoader";
 import usePosLogo from "./usePosLogo";
-<<<<<<< HEAD
 import useTranslation from "./useTranslation";
 
 
 export { useDataFetching, useDebouncedSearch, useDropdownFetching, useLoader, usePosLogo, useTranslation }
-=======
-
-
-export { useDataFetching, useDebouncedSearch, useDropdownFetching, useLoader, usePosLogo }
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
 // refere link https://chat.openai.com/share/31472e8c-484e-4ed5-aa04-cd410983964a
 

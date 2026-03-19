@@ -58,10 +58,6 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         paddingHorizontal: 6,
         backgroundColor: 'white',
-<<<<<<< HEAD
-=======
-        width: 150,
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         minHeight: 190,
         elevation: 3,
         shadowColor: '#000',

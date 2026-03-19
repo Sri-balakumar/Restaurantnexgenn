@@ -28,11 +28,7 @@ const NavigationHeader = ({
     const logoSource = require('@assets/images/logo2.png');
 
     return (
-<<<<<<< HEAD
         <View style={[styles.container, { backgroundColor }, !logo && { paddingRight: 15 }]}>
-=======
-        <View style={[styles.container, { backgroundColor }]}>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             <Pressable
                 onPress={() => {
                     // small press animation then call back

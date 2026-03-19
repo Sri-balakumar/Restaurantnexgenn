@@ -4,10 +4,7 @@ import { SafeAreaView } from '@components/containers';
 import { NavigationHeader } from '@components/Header';
 import { Button } from '@components/common/Button';
 import { fetchPOSRegisters, fetchPOSSessions, createPOSSesionOdoo, closePOSSesionOdoo } from '@api/services/generalApi';
-<<<<<<< HEAD
 import { useTranslation } from '@hooks';
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
 // 3D Animated Card wrapper
 const Card3D = ({ children, style, delay = 0 }) => {
@@ -31,10 +28,7 @@ const Card3D = ({ children, style, delay = 0 }) => {
 };
 
 const POSRegister = ({ navigation }) => {
-<<<<<<< HEAD
   const { t } = useTranslation();
-=======
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   const [registers, setRegisters] = useState([]);
   const [openSessions, setOpenSessions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -51,11 +45,7 @@ const POSRegister = ({ navigation }) => {
       setRegisters(Array.isArray(regs) ? regs : []);
       setOpenSessions(Array.isArray(sessions) ? sessions : []);
     } catch (err) {
-<<<<<<< HEAD
       setError(t.failedToLoadRegisters);
-=======
-      setError('Failed to load POS registers or sessions');
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
     } finally {
       setLoading(false);
     }
@@ -70,24 +60,14 @@ const POSRegister = ({ navigation }) => {
     try {
       const resp = await createPOSSesionOdoo({ configId: register.id });
       if (resp && resp.error) {
-<<<<<<< HEAD
         Alert.alert(t.error, resp.error.message || t.failedToOpenRegister);
       } else {
         Alert.alert(t.registerOpened, `Session ID: ${resp.result}`);
-=======
-        Alert.alert('Error', resp.error.message || 'Failed to open register');
-      } else {
-        Alert.alert('Register Opened', `Session ID: ${resp.result}`);
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         const sessions = await fetchPOSSessions({ state: 'opened' });
         setOpenSessions(sessions);
       }
     } catch (err) {
-<<<<<<< HEAD
       Alert.alert(t.error, err?.message || t.failedToOpenRegister);
-=======
-      Alert.alert('Error', err?.message || 'Failed to open register');
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
     } finally {
       setLoading(false);
     }
@@ -95,45 +75,26 @@ const POSRegister = ({ navigation }) => {
 
   const handleCloseRegisterSession = async (sessionId) => {
     Alert.alert(
-<<<<<<< HEAD
       t.closeRegister,
       t.closeRegisterConfirm,
       [
         { text: t.cancel, style: 'cancel' },
         {
           text: t.close,
-=======
-      'Close Register',
-      'Are you sure you want to close this register?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Close',
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           style: 'destructive',
           onPress: async () => {
             setLoading(true);
             try {
               const resp = await closePOSSesionOdoo({ sessionId });
               if (resp && resp.error) {
-<<<<<<< HEAD
                 Alert.alert(t.error, resp.error.message || t.failedToCloseRegister);
               } else {
                 Alert.alert(t.registerClosed, t.sessionClosedSuccess);
-=======
-                Alert.alert('Error', resp.error.message || 'Failed to close register');
-              } else {
-                Alert.alert('Register Closed', 'Session closed successfully');
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                 const sessions = await fetchPOSSessions({ state: 'opened' });
                 setOpenSessions(sessions);
               }
             } catch (err) {
-<<<<<<< HEAD
               Alert.alert(t.error, err?.message || t.failedToCloseRegister);
-=======
-              Alert.alert('Error', err?.message || 'Failed to close register');
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             } finally {
               setLoading(false);
             }
@@ -166,19 +127,11 @@ const POSRegister = ({ navigation }) => {
             </View>
             <View style={{ flex: 1, marginLeft: 14 }}>
               <Text style={s.cardTitle}>{item.config_id?.[1] || item.config_id?.[0] || 'Restaurant'}</Text>
-<<<<<<< HEAD
               <Text style={s.cardMeta}>{`${t.session} #${item.id}`}</Text>
             </View>
             <View style={s.statusBadgeActive}>
               <View style={s.statusDot} />
               <Text style={s.statusText}>{t.active}</Text>
-=======
-              <Text style={s.cardMeta}>Session #{item.id}</Text>
-            </View>
-            <View style={s.statusBadgeActive}>
-              <View style={s.statusDot} />
-              <Text style={s.statusText}>Active</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             </View>
           </View>
 
@@ -190,33 +143,21 @@ const POSRegister = ({ navigation }) => {
             <View style={s.infoItem}>
               <Text style={s.infoIcon}>👤</Text>
               <View>
-<<<<<<< HEAD
                 <Text style={s.infoLabel}>{t.user}</Text>
-=======
-                <Text style={s.infoLabel}>User</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                 <Text style={s.infoValue}>{item.user_id?.[1] || '—'}</Text>
               </View>
             </View>
             <View style={s.infoItem}>
               <Text style={s.infoIcon}>🕒</Text>
               <View>
-<<<<<<< HEAD
                 <Text style={s.infoLabel}>{t.openedAt}</Text>
-=======
-                <Text style={s.infoLabel}>Opened At</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                 <Text style={s.infoValue}>{item.start_at ? new Date(item.start_at).toLocaleString() : '—'}</Text>
               </View>
             </View>
             <View style={s.infoItem}>
               <Text style={s.infoIcon}>💰</Text>
               <View>
-<<<<<<< HEAD
                 <Text style={s.infoLabel}>{t.openingAmount}</Text>
-=======
-                <Text style={s.infoLabel}>Opening Amount</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                 <Text style={[s.infoValue, s.amountValue]}>{typeof item.cash_register_balance_start === 'number' ? `₹ ${item.cash_register_balance_start.toFixed(2)}` : '—'}</Text>
               </View>
             </View>
@@ -225,17 +166,10 @@ const POSRegister = ({ navigation }) => {
           {/* Action buttons */}
           <View style={s.actionRow}>
             <TouchableOpacity style={s.btnContinue} activeOpacity={0.8} onPress={() => handleContinueSelling(item)}>
-<<<<<<< HEAD
               <Text style={s.btnContinueText}>{t.continueSelling}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.btnClose} activeOpacity={0.8} onPress={() => handleCloseRegisterSession(item.id)}>
               <Text style={s.btnCloseText}>{t.close}</Text>
-=======
-              <Text style={s.btnContinueText}>Continue Selling</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={s.btnClose} activeOpacity={0.8} onPress={() => handleCloseRegisterSession(item.id)}>
-              <Text style={s.btnCloseText}>Close</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             </TouchableOpacity>
           </View>
         </View>
@@ -255,36 +189,21 @@ const POSRegister = ({ navigation }) => {
           </View>
           <View style={{ flex: 1, marginLeft: 14 }}>
             <Text style={s.cardTitle}>{item.name}</Text>
-<<<<<<< HEAD
             <Text style={s.cardMeta}>{`${t.registerId} #${item.id}`}</Text>
           </View>
           <View style={s.statusBadgeIdle}>
             <Text style={s.statusTextIdle}>{t.available}</Text>
-=======
-            <Text style={s.cardMeta}>Register ID #{item.id}</Text>
-          </View>
-          <View style={s.statusBadgeIdle}>
-            <Text style={s.statusTextIdle}>Available</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           </View>
         </View>
 
         {/* Separator */}
         <View style={s.separator} />
 
-<<<<<<< HEAD
         <Text style={s.registerDesc}>{t.tapToOpenRegister}</Text>
 
         {/* Action button */}
         <TouchableOpacity style={s.btnOpen} activeOpacity={0.8} onPress={() => handleOpenRegisterSession(item)}>
           <Text style={s.btnOpenText}>{t.openRegister}</Text>
-=======
-        <Text style={s.registerDesc}>Tap below to open this register and start a new selling session.</Text>
-
-        {/* Action button */}
-        <TouchableOpacity style={s.btnOpen} activeOpacity={0.8} onPress={() => handleOpenRegisterSession(item)}>
-          <Text style={s.btnOpenText}>Open Register</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         </TouchableOpacity>
       </View>
     </Card3D>
@@ -296,11 +215,7 @@ const POSRegister = ({ navigation }) => {
 
   return (
     <SafeAreaView style={s.container}>
-<<<<<<< HEAD
       <NavigationHeader title={t.posRegister} onBackPress={() => navigation.goBack()} logo={false} />
-=======
-      <NavigationHeader title="POS Register" onBackPress={() => navigation.goBack()} logo={false} />
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
       {/* Centered logo with glow */}
       <View style={s.logoWrap}>
@@ -311,36 +226,22 @@ const POSRegister = ({ navigation }) => {
       {loading ? (
         <View style={s.loaderWrap}>
           <ActivityIndicator size="large" color="#F47B20" />
-<<<<<<< HEAD
           <Text style={s.loaderText}>{t.loadingRegisters}</Text>
-=======
-          <Text style={s.loaderText}>Loading registers...</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         </View>
       ) : error ? (
         <View style={s.errorWrap}>
           <Text style={s.errorIcon}>⚠️</Text>
           <Text style={s.errorText}>{error}</Text>
           <TouchableOpacity style={s.retryBtn} activeOpacity={0.8} onPress={loadRegistersAndSessions}>
-<<<<<<< HEAD
             <Text style={s.retryBtnText}>{t.retry}</Text>
-=======
-            <Text style={s.retryBtnText}>Retry</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           </TouchableOpacity>
         </View>
       ) : (
         <FlatList
           data={[
-<<<<<<< HEAD
             ...(openSessions.length > 0 ? [{ _type: 'sectionHeader', _title: t.activeSessions, _count: openSessions.length }] : []),
             ...openSessions.map(s => ({ ...s, _type: 'session' })),
             ...(availableRegisters.length > 0 ? [{ _type: 'sectionHeader', _title: t.availableRegisters, _count: availableRegisters.length }] : []),
-=======
-            ...(openSessions.length > 0 ? [{ _type: 'sectionHeader', _title: 'Active Sessions', _count: openSessions.length }] : []),
-            ...openSessions.map(s => ({ ...s, _type: 'session' })),
-            ...(availableRegisters.length > 0 ? [{ _type: 'sectionHeader', _title: 'Available Registers', _count: availableRegisters.length }] : []),
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             ...availableRegisters.map(r => ({ ...r, _type: 'register' })),
           ]}
           keyExtractor={(item, idx) => item._type === 'sectionHeader' ? `header-${idx}` : `item-${item.id}`}
@@ -363,11 +264,7 @@ const POSRegister = ({ navigation }) => {
           ListEmptyComponent={
             <View style={s.emptyWrap}>
               <Text style={s.emptyIcon}>📋</Text>
-<<<<<<< HEAD
               <Text style={s.emptyText}>{t.noRegistersFound}</Text>
-=======
-              <Text style={s.emptyText}>No registers found</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             </View>
           }
         />

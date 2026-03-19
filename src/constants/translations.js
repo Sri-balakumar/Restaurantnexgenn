@@ -309,6 +309,18 @@ const translations = {
     noRegisteredDevices: 'No registered devices found.',
     couldNotLoadDevices: 'Could not load devices',
 
+    // Payment (Kitchen Bill)
+    payNow: 'Pay Now',
+    selectPaymentMethod: 'Select Payment Method',
+    paymentSuccessful: 'Payment Successful',
+    orderClosedSuccess: 'Order has been closed and payment recorded.',
+    paymentFailed: 'Payment Failed',
+    processing: 'Processing...',
+    enterAmount: 'Enter Amount',
+    orderTotal: 'Order Total',
+    amountReceived: 'Amount Received',
+    pay: 'Pay',
+
     // Common
     save: 'Save',
     delete: 'Delete',
@@ -632,6 +644,18 @@ const translations = {
     never: 'أبداً',
     noRegisteredDevices: 'لم يتم العثور على أجهزة مسجلة.',
     couldNotLoadDevices: 'تعذر تحميل الأجهزة',
+
+    // Payment (Kitchen Bill)
+    payNow: 'ادفع الآن',
+    selectPaymentMethod: 'اختر طريقة الدفع',
+    paymentSuccessful: 'تم الدفع بنجاح',
+    orderClosedSuccess: 'تم إغلاق الطلب وتسجيل الدفع.',
+    paymentFailed: 'فشل الدفع',
+    processing: 'جاري المعالجة...',
+    enterAmount: 'أدخل المبلغ',
+    orderTotal: 'إجمالي الطلب',
+    amountReceived: 'المبلغ المستلم',
+    pay: 'ادفع',
 
     // Common
     save: 'حفظ',

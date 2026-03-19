@@ -56,15 +56,10 @@ const fetchAllPaymentMethods = async () => {
   };
 import { useProductStore } from '@stores/product';
 import Toast from 'react-native-toast-message';
-<<<<<<< HEAD
 import { useTranslation } from '@hooks';
 
 const POSPayment = ({ navigation, route }) => {
   const { t } = useTranslation();
-=======
-
-const POSPayment = ({ navigation, route }) => {
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
     const [invoiceChecked, setInvoiceChecked] = useState(false);
   const {
     products = [],
@@ -309,11 +304,7 @@ const POSPayment = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.white }}>
-<<<<<<< HEAD
       <NavigationHeader title={t.payment} onBackPress={() => navigation.goBack()} />
-=======
-      <NavigationHeader title="Payment" onBackPress={() => navigation.goBack()} />
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       <View style={{ flex: 1, padding: 0, backgroundColor: COLORS.white }}>
         {/* Journal info removed — mapping remains internal */}
         {/* Large Amount Display */}
@@ -352,11 +343,7 @@ const POSPayment = ({ navigation, route }) => {
             }, 100);
           }} style={[styles.modeCard, paymentMode === 'cash' && styles.modeCardSelected]}>
             <Text style={styles.modeCardIcon}>💵</Text>
-<<<<<<< HEAD
             <Text style={[styles.modeCardText, paymentMode === 'cash' && styles.modeCardTextSelected]}>{t.cash}</Text>
-=======
-            <Text style={[styles.modeCardText, paymentMode === 'cash' && styles.modeCardTextSelected]}>Cash</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           </TouchableOpacity>
           <TouchableOpacity onPress={async () => {
             setPaymentMode('card');
@@ -372,11 +359,7 @@ const POSPayment = ({ navigation, route }) => {
             }, 100);
           }} style={[styles.modeCard, paymentMode === 'card' && styles.modeCardSelected]}>
               <Text style={styles.modeCardIcon}>💳</Text>
-<<<<<<< HEAD
               <Text style={[styles.modeCardText, paymentMode === 'card' && styles.modeCardTextSelected]}>{t.card}</Text>
-=======
-              <Text style={[styles.modeCardText, paymentMode === 'card' && styles.modeCardTextSelected]}>Card</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             </TouchableOpacity>
             <TouchableOpacity
               onPress={async () => {
@@ -417,11 +400,7 @@ const POSPayment = ({ navigation, route }) => {
             }, 100);
           }} style={[styles.modeCard, paymentMode === 'account' && styles.modeCardSelected]}>
             <Text style={styles.modeCardIcon}>🏦</Text>
-<<<<<<< HEAD
             <Text style={[styles.modeCardText, paymentMode === 'account' && styles.modeCardTextSelected]}>{t.customerAccount}</Text>
-=======
-            <Text style={[styles.modeCardText, paymentMode === 'account' && styles.modeCardTextSelected]}>Customer Account</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           </TouchableOpacity>
         </View>
 
@@ -442,21 +421,13 @@ const POSPayment = ({ navigation, route }) => {
           }}>
             {paymentMode === 'account' ? (
               <>
-<<<<<<< HEAD
                 <Text style={{ color: '#2b6cb0', fontSize: 22, marginTop: 6 }}>{t.amountChargedToAccount}</Text>
-=======
-                <Text style={{ color: '#2b6cb0', fontSize: 22, marginTop: 6 }}>Amount to be charged to account</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                 <Text style={{ color: '#2b6cb0', fontSize: 26, fontWeight: 'bold', marginBottom: 8 }}>{total.toFixed(3)} ج.ع.</Text>
               </>
             ) : (
               <>
                 <Text style={{ fontSize: 26, color: '#222', marginBottom: 8, fontWeight: 'bold' }}>
-<<<<<<< HEAD
                   {paymentMode === 'card' ? t.card : t.cash}
-=======
-                  {paymentMode === 'card' ? 'Card' : 'Cash'}
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                 </Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
                   <Text style={{ fontSize: 36, color: '#222', textAlign: 'center', flex: 1, fontWeight: 'bold' }}>{inputAmount || '0.000'} ج.ع.</Text>
@@ -468,20 +439,12 @@ const POSPayment = ({ navigation, route }) => {
                 </View>
                 {remaining < 0 ? (
                   <>
-<<<<<<< HEAD
                     <Text style={{ color: 'green', fontSize: 22, marginTop: 6 }}>{t.change}</Text>
-=======
-                    <Text style={{ color: 'green', fontSize: 22, marginTop: 6 }}>Change</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                     <Text style={{ color: 'green', fontSize: 26, fontWeight: 'bold', marginBottom: 8 }}>{Math.abs(remaining).toFixed(3)} ج.ع.</Text>
                   </>
                 ) : (
                   <>
-<<<<<<< HEAD
                     <Text style={{ color: '#c00', fontSize: 22, marginTop: 6 }}>{t.remaining}</Text>
-=======
-                    <Text style={{ color: '#c00', fontSize: 22, marginTop: 6 }}>Remaining</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                     <Text style={{ color: '#c00', fontSize: 26, fontWeight: 'bold', marginBottom: 8 }}>{remaining.toFixed(3)} ج.ع.</Text>
                   </>
                 )}
@@ -550,13 +513,8 @@ const POSPayment = ({ navigation, route }) => {
               flexDirection: 'column',
               justifyContent: 'center',
             }}>
-<<<<<<< HEAD
               <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#222' }}>{t.customer}</Text>
               <Text style={{ fontSize: 22, color: '#444', marginTop: 4 }}>{customer?.name || t.select}</Text>
-=======
-              <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#222' }}>Customer</Text>
-              <Text style={{ fontSize: 22, color: '#444', marginTop: 4 }}>{customer?.name || 'Select'}</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setInvoiceChecked(!invoiceChecked)}
@@ -591,20 +549,12 @@ const POSPayment = ({ navigation, route }) => {
                 </View>
               </View>
               <View>
-<<<<<<< HEAD
                 <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#222' }}>{t.invoice}</Text>
-=======
-                <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#222' }}>Invoice</Text>
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
               </View>
             </TouchableOpacity>
           </View>
         <View style={{ alignItems: 'center', marginTop: 18 }}>
-<<<<<<< HEAD
           <Button title={t.validate} onPress={handlePay} style={{ width: '90%', paddingVertical: 16, borderRadius: 10 }} textStyle={{ fontSize: 20 }} />
-=======
-          <Button title="Validate" onPress={handlePay} style={{ width: '90%', paddingVertical: 16, borderRadius: 10 }} textStyle={{ fontSize: 20 }} />
->>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         </View>
       </View>
     </SafeAreaView>
