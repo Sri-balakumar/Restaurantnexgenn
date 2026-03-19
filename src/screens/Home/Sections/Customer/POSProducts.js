@@ -2,7 +2,7 @@ import React, { useEffect, useCallback, useState, useMemo, useRef } from 'react'
 import { View, Text, TextInput, FlatList, TouchableOpacity, ScrollView, Modal, Pressable, StyleSheet as RNStyleSheet, InteractionManager, Platform, Alert, ActivityIndicator } from 'react-native';
 import { NavigationHeader } from '@components/Header';
 import { ProductsList } from '@components/Product';
-import { fetchPosPresets, addLineToOrderOdoo, updateOrderLineOdoo, removeOrderLineOdoo, fetchPosOrderById, fetchOrderLinesByIds, fetchPosCategoriesOdoo, fetchProductCategoriesOdoo, fetchCategoriesOdoo, preloadAllProducts, createDraftPosOrderOdoo, fetchPosPaymentMethodsOdoo, createPosOrderOdoo, createPosPaymentOdoo, fetchPOSSessions } from '@api/services/generalApi';
+import { fetchPosPresets, addLineToOrderOdoo, updateOrderLineOdoo, removeOrderLineOdoo, fetchPosOrderById, fetchOrderLinesByIds, fetchPosCategoriesOdoo, fetchProductCategoriesOdoo, fetchCategoriesOdoo, preloadAllProducts, createDraftPosOrderOdoo, fetchPosPaymentMethodsOdoo, createPosOrderOdoo, createPosPaymentOdoo, fetchPOSSessions, fetchPricelistsOdoo, fetchPricelistItemsOdoo } from '@api/services/generalApi';
 import { useFocusEffect } from '@react-navigation/native';
 import { FlashList } from '@shopify/flash-list';
 import { formatData } from '@utils/formatters';
@@ -409,6 +409,14 @@ const localStyles = RNStyleSheet.create({
   discountRemoveBtnText: { color: '#dc2626', fontWeight: '800', fontSize: 15 },
   discountCancelBtn: { backgroundColor: '#f3f4f6', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   discountCancelText: { fontWeight: '700', fontSize: 15, color: '#444' },
+
+  // Pricelist toggle buttons
+  pricelistRow: { flexDirection: 'row', gap: 8, marginBottom: 10, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#f0f2f8' },
+  pricelistBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: '#f0f2f8', borderWidth: 1.5, borderColor: '#e0e3e8' },
+  pricelistBtnNormal: { backgroundColor: '#2563eb', borderColor: '#2563eb' },
+  pricelistBtnTalabat: { backgroundColor: '#e11d48', borderColor: '#e11d48' },
+  pricelistBtnText: { fontSize: 12, fontWeight: '800', color: '#6b7a90', letterSpacing: 0.5 },
+  pricelistBtnTextActive: { color: '#fff' },
 });
 
 const POSProducts = ({ navigation, route }) => {
@@ -452,6 +460,13 @@ const POSProducts = ({ navigation, route }) => {
   const [discountModalVisible, setDiscountModalVisible] = useState(false);
   const [discountTargetItem, setDiscountTargetItem] = useState(null);
   const DISCOUNT_OPTIONS = [10, 20, 30, 40, 50];
+
+  // Pricelist state
+  const [pricelists, setPricelists] = useState([]);
+  const [activePricelistId, setActivePricelistId] = useState(null);
+  const activePricelistRef = useRef(null);
+  const [pricelistItems, setPricelistItems] = useState({});
+  const pricelistItemsRef = useRef({});
   const [noteText, setNoteText] = useState('');
   const pendingSyncs = useRef([]);  // Track pending addLine API calls
   const initialLoadDone = useRef(false);  // Track if initial server load is complete
@@ -479,6 +494,142 @@ const POSProducts = ({ navigation, route }) => {
       } catch (_) {}
     })();
   }, []);
+
+  // Load pricelists from Odoo
+  useEffect(() => {
+    (async () => {
+      try {
+        const lists = await fetchPricelistsOdoo();
+        setPricelists(lists);
+
+        // Check if order already has a pricelist set
+        let orderPlId = null;
+        const existingOrderId = orderIdRef.current;
+        if (existingOrderId) {
+          try {
+            const orderResp = await fetchPosOrderById(existingOrderId);
+            const plField = orderResp?.result?.pricelist_id;
+            orderPlId = Array.isArray(plField) ? plField[0] : plField;
+          } catch (_) {}
+        }
+
+        // Use order's pricelist if set, otherwise default to dine-in
+        if (orderPlId && lists.some(p => p.id === orderPlId)) {
+          setActivePricelistId(orderPlId);
+          activePricelistRef.current = orderPlId;
+        } else {
+          const normal = lists.find(p => !p.name?.toLowerCase().includes('talabat') && !p.name?.toLowerCase().includes('application'));
+          const defaultId = normal ? normal.id : (lists.length > 0 ? lists[0].id : null);
+          if (defaultId) { setActivePricelistId(defaultId); activePricelistRef.current = defaultId; }
+        }
+        // Pre-fetch ALL pricelist items + ALL product template mappings for instant switching
+        try {
+          const { baseUrl, headers } = await _buildOdooHeadersLocal();
+          // Fetch all pricelist items across all pricelists
+          const allPlResp = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+            method: 'POST', headers,
+            body: JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { model: 'product.pricelist.item', method: 'search_read', args: [[]], kwargs: { fields: ['pricelist_id', 'product_tmpl_id', 'product_id', 'fixed_price'], limit: 5000 } } }),
+          });
+          const allPlData = await allPlResp.json();
+          const allItems = allPlData?.result || [];
+          // Build cache: { plId: { tmplId: fixedPrice } }
+          const cache = {};
+          allItems.forEach(item => {
+            const plId = Array.isArray(item.pricelist_id) ? item.pricelist_id[0] : item.pricelist_id;
+            const tid = Array.isArray(item.product_tmpl_id) ? item.product_tmpl_id[0] : item.product_tmpl_id;
+            const fp = item.fixed_price;
+            if (plId && tid && fp !== false && fp !== null && fp !== undefined) {
+              if (!cache[plId]) cache[plId] = {};
+              cache[plId][tid] = Number(fp);
+            }
+          });
+
+          // Fetch all products to map product_id → tmpl_id + lst_price
+          const allProdResp = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+            method: 'POST', headers,
+            body: JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { model: 'product.product', method: 'search_read', args: [[]], kwargs: { fields: ['id', 'product_tmpl_id', 'lst_price', 'list_price'], limit: 5000 } } }),
+          });
+          const allProdData = await allProdResp.json();
+          const allProds = allProdData?.result || [];
+          const prodMap = {};
+          allProds.forEach(p => {
+            prodMap[p.id] = {
+              tmplId: Array.isArray(p.product_tmpl_id) ? p.product_tmpl_id[0] : p.product_tmpl_id,
+              lstPrice: p.lst_price || p.list_price || 0,
+            };
+          });
+
+          const plData2 = { _cache: cache, _prodMap: prodMap };
+          setPricelistItems(plData2);
+          pricelistItemsRef.current = plData2;
+        } catch (_) {}
+      } catch (_) {}
+    })();
+  }, []);
+
+  // Switch pricelist — INSTANT using pre-cached data, then sync to Odoo in background
+  const handleSwitchPricelist = useCallback((pricelistId) => {
+    if (pricelistId === activePricelistRef.current) return;
+    activePricelistRef.current = pricelistId;
+    setActivePricelistId(pricelistId);
+
+    const cartItems = useProductStore.getState().cartItems[useProductStore.getState().currentCustomerId] || [];
+    if (cartItems.length === 0) return;
+
+    const cache = pricelistItems?._cache || {};
+    const prodMap = pricelistItems?._prodMap || {};
+    const plCache = cache[pricelistId] || {};
+
+    // INSTANT: Update all cart items from cache — no API calls
+    for (const cartItem of cartItems) {
+      const pid = cartItem.remoteId || (typeof cartItem.id === 'number' ? cartItem.id : null);
+      if (!pid) continue;
+
+      const info = prodMap[pid];
+      const tmplId = info?.tmplId;
+
+      // Priority: pricelist price → lst_price fallback
+      let rawPrice = (tmplId && plCache[tmplId] !== undefined) ? plCache[tmplId] : (info?.lstPrice || cartItem.price_unit || cartItem.price || 0);
+
+      // Round to 2 decimals (Odoo currency rounding) then 3 for display
+      const exactPrice = Math.round(Math.round(Number(rawPrice) * 100) / 100 * 1000) / 1000;
+
+      addProduct({ ...cartItem, price_unit: exactPrice, price: exactPrice, original_price_unit: undefined, discount_percent: 0 });
+    }
+
+    // BACKGROUND: Sync to Odoo (non-blocking)
+    (async () => {
+      try {
+        const { baseUrl, headers } = await _buildOdooHeadersLocal();
+        const orderId = orderIdRef.current;
+
+        // Set pricelist on order
+        if (orderId) {
+          await fetch(`${baseUrl}/web/dataset/call_kw`, {
+            method: 'POST', headers,
+            body: JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { model: 'pos.order', method: 'write', args: [[orderId], { pricelist_id: pricelistId }], kwargs: {} } }),
+          });
+
+          // Update each order line price in Odoo
+          for (const cartItem of cartItems) {
+            const pid = cartItem.remoteId || (typeof cartItem.id === 'number' ? cartItem.id : null);
+            if (!pid) continue;
+            const info = prodMap[pid];
+            const tmplId = info?.tmplId;
+            let rawPrice = (tmplId && plCache[tmplId] !== undefined) ? plCache[tmplId] : (info?.lstPrice || 0);
+            const exactPrice = Math.round(Math.round(Number(rawPrice) * 100) / 100 * 1000) / 1000;
+
+            const lineId = await getOdooLineId(cartItem);
+            if (lineId) {
+              try { await updateOrderLineOdoo({ lineId, price_unit: exactPrice, qty: Number(cartItem.qty ?? cartItem.quantity ?? 1), orderId }); } catch (_) {}
+            }
+          }
+        }
+      } catch (_) {}
+    })();
+
+    Toast.show({ type: 'success', text1: 'Pricelist changed', text2: pricelists.find(p => p.id === pricelistId)?.name || '' });
+  }, [pricelists, pricelistItems, addProduct, getOdooLineId]);
 
   // Payment handler — uses existing draft order, adds payment, validates to 'paid'
   const handlePayNow = useCallback(async (cartItems) => {
@@ -563,12 +714,37 @@ const POSProducts = ({ navigation, route }) => {
     }
   }, [sessionId, selectedPayMethodId, payInputAmount, payMethods, route?.params?.order_type, navigation, t, clearProducts]);
 
+  // Helper: get Odoo line ID from item (handles both odoo_line_ prefixed and raw IDs)
+  const getOdooLineId = useCallback(async (item) => {
+    if (String(item.id).startsWith('odoo_line_')) {
+      return Number(String(item.id).replace('odoo_line_', ''));
+    }
+    // For items added from app — find the line in the server order
+    const orderId = orderIdRef.current;
+    if (!orderId) return null;
+    try {
+      const orderResp = await fetchPosOrderById(orderId);
+      const lineIds = orderResp?.result?.lines ?? [];
+      if (lineIds.length === 0) return null;
+      const linesResp = await fetchOrderLinesByIds(lineIds);
+      const lines = linesResp?.result ?? [];
+      const productId = item.remoteId || item.id;
+      const match = lines.find(l => {
+        const pid = Array.isArray(l.product_id) ? l.product_id[0] : l.product_id;
+        return pid === productId;
+      });
+      return match ? match.id : null;
+    } catch (_) {
+      return null;
+    }
+  }, []);
+
   // Discount handler — apply discount % to a single product
   const handleApplyDiscount = useCallback(async (percent) => {
     if (!discountTargetItem) return;
     const item = discountTargetItem;
     const originalPrice = Number(item.original_price_unit ?? item.price_unit ?? item.price ?? 0);
-    const discountedPrice = originalPrice * (1 - percent / 100);
+    const discountedPrice = Math.round((originalPrice * (1 - percent / 100)) * 1000) / 1000;
 
     // Update in local cart
     addProduct({
@@ -581,19 +757,21 @@ const POSProducts = ({ navigation, route }) => {
 
     // Sync with Odoo
     const orderId = orderIdRef.current;
-    if (orderId && String(item.id).startsWith('odoo_line_')) {
-      const lineId = Number(String(item.id).replace('odoo_line_', ''));
-      try {
-        await updateOrderLineOdoo({ lineId, qty: Number(item.qty ?? item.quantity ?? 1), price_unit: originalPrice, discount: percent, orderId });
-      } catch (e) {
-        Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to update discount in Odoo' });
+    if (orderId) {
+      const lineId = await getOdooLineId(item);
+      if (lineId) {
+        try {
+          await updateOrderLineOdoo({ lineId, qty: Number(item.qty ?? item.quantity ?? 1), price_unit: originalPrice, discount: percent, note: item.note || undefined, orderId });
+        } catch (e) {
+          Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to update discount in Odoo' });
+        }
       }
     }
 
     setDiscountModalVisible(false);
     setDiscountTargetItem(null);
     Toast.show({ type: 'success', text1: `${percent}% discount applied`, text2: item.name });
-  }, [discountTargetItem, addProduct]);
+  }, [discountTargetItem, addProduct, getOdooLineId]);
 
   // Remove discount from a product
   const handleRemoveDiscount = useCallback(async () => {
@@ -610,27 +788,44 @@ const POSProducts = ({ navigation, route }) => {
     });
 
     const orderId = orderIdRef.current;
-    if (orderId && String(item.id).startsWith('odoo_line_')) {
-      const lineId = Number(String(item.id).replace('odoo_line_', ''));
-      try {
-        await updateOrderLineOdoo({ lineId, qty: Number(item.qty ?? item.quantity ?? 1), price_unit: originalPrice, discount: 0, orderId });
-      } catch (e) {}
+    if (orderId) {
+      const lineId = await getOdooLineId(item);
+      if (lineId) {
+        try {
+          await updateOrderLineOdoo({ lineId, qty: Number(item.qty ?? item.quantity ?? 1), price_unit: originalPrice, discount: 0, orderId });
+        } catch (e) {}
+      }
     }
 
     setDiscountModalVisible(false);
     setDiscountTargetItem(null);
     Toast.show({ type: 'info', text1: 'Discount removed', text2: item.name });
-  }, [discountTargetItem, addProduct]);
+  }, [discountTargetItem, addProduct, getOdooLineId]);
 
-  // Auto-save note to product
+  // Auto-save note to product (local + Odoo with debounce)
+  const noteSyncTimer = useRef(null);
   const handleNoteChange = useCallback((text) => {
     setNoteText(text);
     if (!discountTargetItem) return;
-    // Save note to cart item
+    // Save locally immediately
     addProduct({ ...discountTargetItem, note: text });
-    // Update discountTargetItem reference so modal stays in sync
     setDiscountTargetItem(prev => prev ? { ...prev, note: text } : null);
-  }, [discountTargetItem, addProduct]);
+
+    // Debounce Odoo sync (800ms after last keystroke)
+    if (noteSyncTimer.current) clearTimeout(noteSyncTimer.current);
+    const itemRef = discountTargetItem;
+    noteSyncTimer.current = setTimeout(async () => {
+      const orderId = orderIdRef.current;
+      if (orderId && itemRef) {
+        const lineId = await getOdooLineId(itemRef);
+        if (lineId) {
+          try {
+            await updateOrderLineOdoo({ lineId, note: text, orderId });
+          } catch (_) {}
+        }
+      }
+    }, 800);
+  }, [discountTargetItem, addProduct, getOdooLineId]);
 
   // Cache all products
   const [allCachedProducts, setAllCachedProducts] = useState(null);
@@ -676,15 +871,25 @@ const POSProducts = ({ navigation, route }) => {
     const qty = Number(line.qty || 1);
     const unitPrice = Number(line.price_unit || 0);
     const subtotalIncl = Number(line.price_subtotal_incl ?? line.price_subtotal ?? (qty * unitPrice));
+    const discountPct = Number(line.discount || 0);
+    const originalPrice = unitPrice;
+    // Use Odoo's pre-calculated subtotal for exact price, avoid floating point errors
+    const effectivePrice = discountPct > 0
+      ? Math.round((originalPrice * (1 - discountPct / 100)) * 1000) / 1000
+      : originalPrice;
+
     return {
       id: `odoo_line_${line.id}`,
       remoteId: productId,
       name: productName,
-      price: Number(line.price_unit || line.price_subtotal_incl || 0),
-      price_unit: Number(line.price_unit || line.price_subtotal_incl || 0),
+      price: effectivePrice,
+      price_unit: effectivePrice,
+      original_price_unit: discountPct > 0 ? originalPrice : undefined,
+      discount_percent: discountPct,
+      note: line.customer_note || '',
       quantity: qty,
       qty,
-      price_subtotal: Number(line.price_subtotal ?? (qty * unitPrice)),
+      price_subtotal: Number(line.price_subtotal ?? (qty * effectivePrice)),
       price_subtotal_incl: subtotalIncl,
     };
   }, []);
@@ -696,12 +901,49 @@ const POSProducts = ({ navigation, route }) => {
     const cartOwner = `order_${orderId}`;
     setCurrentCustomer(cartOwner);
 
-    // If local cart already has items, just fetch order info (not lines)
+    // If local cart already has items, sync notes/discounts from server
     const localCart = useProductStore.getState().cartItems[cartOwner] || [];
     if (localCart.length > 0) {
       try {
         const orderResp = await fetchPosOrderById(orderId);
-        setOrderInfo(orderResp?.result ?? null);
+        const orderResult = orderResp?.result ?? null;
+        setOrderInfo(orderResult);
+        // Sync pricelist button from order
+        if (orderResult?.pricelist_id) {
+          const plId = Array.isArray(orderResult.pricelist_id) ? orderResult.pricelist_id[0] : orderResult.pricelist_id;
+          if (plId) { setActivePricelistId(plId); activePricelistRef.current = plId; }
+        }
+        // Sync notes and discounts from Odoo back to local cart
+        const lineIds = orderResp?.result?.lines ?? [];
+        if (lineIds.length > 0) {
+          const linesResp = await fetchOrderLinesByIds(lineIds);
+          const serverLines = linesResp?.result ?? [];
+          const updatedCart = localCart.map(item => {
+            const productId = item.remoteId || item.id;
+            const lineId = String(item.id).startsWith('odoo_line_') ? Number(String(item.id).replace('odoo_line_', '')) : null;
+            const serverLine = lineId
+              ? serverLines.find(l => l.id === lineId)
+              : serverLines.find(l => (Array.isArray(l.product_id) ? l.product_id[0] : l.product_id) === productId);
+            if (serverLine) {
+              const serverDiscount = Number(serverLine.discount || 0);
+              const serverNote = serverLine.customer_note || '';
+              const origPrice = Number(serverLine.price_unit || item.price_unit || item.price || 0);
+              const effectivePrice = serverDiscount > 0
+                ? Math.round((origPrice * (1 - serverDiscount / 100)) * 1000) / 1000
+                : origPrice;
+              return {
+                ...item,
+                note: serverNote,
+                discount_percent: serverDiscount,
+                price_unit: effectivePrice,
+                price: effectivePrice,
+                original_price_unit: serverDiscount > 0 ? origPrice : undefined,
+              };
+            }
+            return item;
+          });
+          loadCustomerCart(cartOwner, updatedCart);
+        }
       } catch (_) {}
       return;
     }
@@ -910,7 +1152,18 @@ const POSProducts = ({ navigation, route }) => {
 
   const handleAdd = useCallback((p, qtyOverride = 1) => {
     const productName = p.product_name || p.name || p.display_name || p.full_product_name || `Product #${p.id}`;
-    const productPrice = p.price || p.list_price || 0;
+    let productPrice = p.price || p.list_price || 0;
+
+    // Use cached pricelist price for the active pricelist (instant, no API)
+    const currentPlId = activePricelistRef.current;
+    const plRef = pricelistItemsRef.current;
+    if (currentPlId && plRef?._cache && plRef?._prodMap) {
+      const plCache = plRef._cache[currentPlId];
+      const prodInfo = plRef._prodMap[p.id];
+      if (plCache && prodInfo?.tmplId && plCache[prodInfo.tmplId] !== undefined) {
+        productPrice = Math.round(Math.round(Number(plCache[prodInfo.tmplId]) * 100) / 100 * 1000) / 1000;
+      }
+    }
 
     // Check if this product already exists in the cart (by remoteId / product ID)
     const localCart = useProductStore.getState().cartItems[useProductStore.getState().currentCustomerId] || [];
@@ -1026,20 +1279,22 @@ const POSProducts = ({ navigation, route }) => {
       const newQty = qty + 1;
       const orderId = orderIdRef.current;
       addProduct({ ...item, quantity: newQty, qty: newQty });
-      if (orderId && String(item.id).startsWith('odoo_line_')) {
-        const lineId = Number(String(item.id).replace('odoo_line_', ''));
-        try {
-          await updateOrderLineOdoo({ lineId, qty: newQty, price_unit: item.price_unit ?? item.price, orderId });
-        } catch (e) {
-          Toast.show({ type: 'error', text1: 'Odoo Error', text2: 'Failed to update quantity' });
-          try { await refreshServerOrder(orderId); } catch (_) {}
-        }
-      } else if (orderId && item.remoteId) {
-        try {
-          await addLineToOrderOdoo({ orderId, productId: item.remoteId || item.id, qty: 1, price_unit: item.price_unit ?? item.price, name: item.name });
-        } catch (e) {
-          Toast.show({ type: 'error', text1: 'Odoo Error', text2: 'Failed to add product to order' });
-          try { await refreshServerOrder(orderId); } catch (_) {}
+      if (orderId) {
+        const lineId = await getOdooLineId(item);
+        if (lineId) {
+          try {
+            await updateOrderLineOdoo({ lineId, qty: newQty, price_unit: item.price_unit ?? item.price, orderId });
+          } catch (e) {
+            Toast.show({ type: 'error', text1: 'Odoo Error', text2: 'Failed to update quantity' });
+            try { await refreshServerOrder(orderId); } catch (_) {}
+          }
+        } else if (item.remoteId) {
+          try {
+            await addLineToOrderOdoo({ orderId, productId: item.remoteId || item.id, qty: 1, price_unit: item.price_unit ?? item.price, name: item.name });
+          } catch (e) {
+            Toast.show({ type: 'error', text1: 'Odoo Error', text2: 'Failed to add product to order' });
+            try { await refreshServerOrder(orderId); } catch (_) {}
+          }
         }
       }
     };
@@ -1048,23 +1303,25 @@ const POSProducts = ({ navigation, route }) => {
       const orderId = orderIdRef.current;
       if (qty <= 1) {
         removeProduct(item.id);
-        if (orderId && String(item.id).startsWith('odoo_line_')) {
-          const lineId = Number(String(item.id).replace('odoo_line_', ''));
-          try { await removeOrderLineOdoo({ lineId, orderId }); } catch (e) {}
-          try { await refreshServerOrder(orderId); } catch (_) {}
-        } else if (orderId) {
+        if (orderId) {
+          const lineId = await getOdooLineId(item);
+          if (lineId) {
+            try { await removeOrderLineOdoo({ lineId, orderId }); } catch (_) {}
+          }
           try { await refreshServerOrder(orderId); } catch (_) {}
         }
       } else {
         const newQty = qty - 1;
         addProduct({ ...item, quantity: newQty, qty: newQty });
-        if (orderId && String(item.id).startsWith('odoo_line_')) {
-          const lineId = Number(String(item.id).replace('odoo_line_', ''));
-          try {
-            await updateOrderLineOdoo({ lineId, qty: newQty, price_unit: item.price_unit ?? item.price, orderId });
-          } catch (e) {
-            Toast.show({ type: 'error', text1: 'Odoo Error', text2: 'Failed to update quantity' });
-            try { await refreshServerOrder(orderId); } catch (_) {}
+        if (orderId) {
+          const lineId = await getOdooLineId(item);
+          if (lineId) {
+            try {
+              await updateOrderLineOdoo({ lineId, qty: newQty, price_unit: item.price_unit ?? item.price, orderId });
+            } catch (e) {
+              Toast.show({ type: 'error', text1: 'Odoo Error', text2: 'Failed to update quantity' });
+              try { await refreshServerOrder(orderId); } catch (_) {}
+            }
           }
         }
       }
@@ -1135,6 +1392,31 @@ const POSProducts = ({ navigation, route }) => {
             <Text style={localStyles.registerUserText}>{route?.params?.userName || t.staff}</Text>
           </View>
         </View>
+
+        {/* Pricelist Toggle — only Dine In and Application buttons */}
+        {(() => {
+          const talabatPl = pricelists.find(p => p.name?.toLowerCase().includes('talabat') || p.name?.toLowerCase().includes('application'));
+          const normalPl = pricelists.find(p => p.id !== talabatPl?.id);
+          if (!talabatPl || !normalPl) return null;
+          return (
+            <View style={localStyles.pricelistRow}>
+              <TouchableOpacity
+                style={[localStyles.pricelistBtn, activePricelistId === normalPl.id && localStyles.pricelistBtnNormal]}
+                onPress={() => handleSwitchPricelist(normalPl.id)}
+                activeOpacity={0.7}
+              >
+                <Text style={[localStyles.pricelistBtnText, activePricelistId === normalPl.id && localStyles.pricelistBtnTextActive]}>DINE IN PRICE</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[localStyles.pricelistBtn, activePricelistId === talabatPl.id && localStyles.pricelistBtnTalabat]}
+                onPress={() => handleSwitchPricelist(talabatPl.id)}
+                activeOpacity={0.7}
+              >
+                <Text style={[localStyles.pricelistBtnText, activePricelistId === talabatPl.id && localStyles.pricelistBtnTextActive]}>APPLICATION PRICE</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        })()}
 
         {/* Column header */}
         <View style={localStyles.columnHeader}>
@@ -1255,7 +1537,7 @@ const POSProducts = ({ navigation, route }) => {
             {/* Search bar */}
             <View style={localStyles.productsSearchWrap}>
               <View style={localStyles.productsSearchBar}>
-                <AntDesign name="search1" size={18} color="#888" style={{ marginRight: 10 }} />
+                <Text style={{ fontSize: 16, marginRight: 10 }}>🔍</Text>
                 <TextInput
                   placeholder={t.searchProducts}
                   placeholderTextColor="#9ca3af"
@@ -1345,7 +1627,7 @@ const POSProducts = ({ navigation, route }) => {
               style={localStyles.floatingRegisterBtn}
               activeOpacity={0.85}
             >
-              <AntDesign name="shoppingcart" size={18} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={{ fontSize: 16, marginRight: 8 }}>🛒</Text>
               <Text style={localStyles.floatingRegisterText}>{t.goToRegister}</Text>
             </TouchableOpacity>
           </SafeAreaView>

@@ -29,7 +29,7 @@ const ProductsList = ({ item, onPress, showQuickAdd, onQuickAdd }) => {
             </View>
                         <View style={styles.textContainer}>
                                 <Text style={styles.name}>{truncatedName?.trim()}</Text>
-                                <Text style={styles.price}>{priceValue?.toString ? Number(priceValue).toFixed(2) : priceValue} {currency || ''}</Text>
+                                <Text style={styles.price}>{priceValue?.toString ? Number(priceValue).toFixed(3) : priceValue} {currency || ''}</Text>
                                 <Text style={styles.code}>
                                     {item.product_code ?? item.code ?? item.default_code ?? ''}
                                 </Text>

@@ -131,11 +131,11 @@ const AddVendorProducts = ({ navigation }) => {
     }
 
     return {
-      subTotal: isInclusive ? (subtotal - tax).toFixed(2) : subtotal.toFixed(2),
-      tax: tax.toFixed(2),
+      subTotal: isInclusive ? (subtotal - tax).toFixed(3) : subtotal.toFixed(3),
+      tax: tax.toFixed(3),
       totalAmount: isInclusive
-        ? subtotal.toFixed(2)
-        : (subtotal + tax).toFixed(2),
+        ? subtotal.toFixed(3)
+        : (subtotal + tax).toFixed(3),
     };
   };
 

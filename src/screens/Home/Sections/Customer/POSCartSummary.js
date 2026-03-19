@@ -35,7 +35,7 @@ const CartRow = memo(({ itemId }) => {
 
   const qty = Number(item.quantity || item.qty || 0);
   const price = Number(item.price || 0);
-  const lineTotal = (qty * price).toFixed(2);
+  const lineTotal = (qty * price).toFixed(3);
 
   const increase = () => addProduct({ ...item, quantity: qty + 1 });
   const decrease = () => {
@@ -62,7 +62,7 @@ const CartRow = memo(({ itemId }) => {
       <Image source={imageSource} style={styles.thumb} resizeMode="cover" />
       <View style={styles.info}>
         <Text style={styles.name}>{item.name}</Text>
-        <Text style={styles.qty}>{qty} × {price.toFixed(2)}</Text>
+        <Text style={styles.qty}>{qty} × {price.toFixed(3)}</Text>
       </View>
       <View style={styles.controls}>
         <TouchableOpacity style={styles.qtyBtn} onPress={decrease} activeOpacity={0.6}>
@@ -168,7 +168,7 @@ const POSCartSummary = ({ navigation, route }) => {
 
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>{t.total}</Text>
-          <Text style={styles.totalValue}>{total.toFixed(2)}</Text>
+          <Text style={styles.totalValue}>{total.toFixed(3)}</Text>
         </View>
 
         <View style={styles.checkoutWrap}>

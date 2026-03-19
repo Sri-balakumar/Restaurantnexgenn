@@ -108,9 +108,9 @@ const AuditDetails = ({ navigation, route }) => {
                     textAlignVertical={'top'}
                 />
                 <DetailField label="Date" value={formatDate(details?.date)} />
-                <DetailField label="Amount" value={details?.amount?.toFixed(2) || '-'} />
-                <DetailField label="Tax" value={((details?.taxed_amount - details?.amount)?.toFixed(2)) || '-'} />
-                <DetailField label="Total" value={details?.taxed_amount?.toFixed(2) || '-'} />
+                <DetailField label="Amount" value={details?.amount?.toFixed(3) || '-'} />
+                <DetailField label="Tax" value={((details?.taxed_amount - details?.amount)?.toFixed(3)) || '-'} />
+                <DetailField label="Total" value={details?.taxed_amount?.toFixed(3) || '-'} />
                 <DetailField label="Sales Person" value={details?.sales_person_name || '-'} />
                 <DetailField label="Warehouse" value={details?.warehouse_name || '-'} />
                 <DetailField label="Company" value={details?.company_name || '-'} />

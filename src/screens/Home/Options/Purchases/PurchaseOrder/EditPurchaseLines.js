@@ -122,8 +122,8 @@ const EditPurchaseLines = ({ navigation }) => {
       const totalAmount = untaxedAmount + tax;
       setFormData((prevFormData) => ({
         ...prevFormData,
-        tax: tax.toFixed(2),
-        totalAmount: totalAmount.toFixed(2),
+        tax: tax.toFixed(3),
+        totalAmount: totalAmount.toFixed(3),
       }));
     };
 

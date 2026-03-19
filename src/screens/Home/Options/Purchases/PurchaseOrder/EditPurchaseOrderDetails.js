@@ -327,9 +327,9 @@ const EditPurchaseOrderDetails = ({ navigation, route }) => {
       taxes += item.tax_value || item.tax || 0;
     });
     return {
-      untaxedTotal: untaxed.toFixed(2),
-      taxTotal: taxes.toFixed(2),
-      grandTotal: (untaxed + taxes).toFixed(2),
+      untaxedTotal: untaxed.toFixed(3),
+      taxTotal: taxes.toFixed(3),
+      grandTotal: (untaxed + taxes).toFixed(3),
     };
   }, [purchaseOrderLines]);
 

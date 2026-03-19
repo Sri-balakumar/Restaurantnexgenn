@@ -62,9 +62,9 @@ const PurchaseOrderForm = ({ route, navigation }) => {
 
     setFormData((prevFormData) => ({
       ...prevFormData,
-      untaxedAmount: untaxed.toFixed(2),
-      taxTotal: taxes.toFixed(2), 
-      totalAmount: total.toFixed(2),
+      untaxedAmount: untaxed.toFixed(3),
+      taxTotal: taxes.toFixed(3), 
+      totalAmount: total.toFixed(3),
     }));
   };
   

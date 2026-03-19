@@ -158,7 +158,7 @@ const POSRegister = ({ navigation }) => {
               <Text style={s.infoIcon}>💰</Text>
               <View>
                 <Text style={s.infoLabel}>{t.openingAmount}</Text>
-                <Text style={[s.infoValue, s.amountValue]}>{typeof item.cash_register_balance_start === 'number' ? `₹ ${item.cash_register_balance_start.toFixed(2)}` : '—'}</Text>
+                <Text style={[s.infoValue, s.amountValue]}>{typeof item.cash_register_balance_start === 'number' ? `₹ ${item.cash_register_balance_start.toFixed(3)}` : '—'}</Text>
               </View>
             </View>
           </View>

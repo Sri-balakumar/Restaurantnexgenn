@@ -48,8 +48,8 @@ const DeliveryNoteCreationDetailList = ({ item, onPress, onQuantityChange }) => 
         </View>
         <View style={styles.rightColumn}>
           <Text style={styles.content}>{taxes.taxes_name}</Text>
-          <Text style={styles.content}>{parseFloat(unit_price || 0).toFixed(2)}</Text>
-          <Text style={styles.content}>{sub_total.toFixed(2)}</Text>
+          <Text style={styles.content}>{parseFloat(unit_price || 0).toFixed(3)}</Text>
+          <Text style={styles.content}>{sub_total.toFixed(3)}</Text>
         </View>
       </View>
     </TouchableOpacity>

@@ -45,8 +45,7 @@ const AppNavigator = () => {
       bottom: 5,
       right: 10,
       left: 10,
-      borderTopRightRadius: 20,
-      borderTopLeftRadius: 20,
+      borderRadius: 20,
       elevation: 8,
       shadowColor: '#000',
       shadowOpacity: 0.15,
@@ -54,6 +53,8 @@ const AppNavigator = () => {
       shadowOffset: { width: 0, height: -3 },
       height: 68,
       backgroundColor: '#2e294e',
+      borderTopWidth: 0,
+      overflow: 'hidden',
     }
   };
 

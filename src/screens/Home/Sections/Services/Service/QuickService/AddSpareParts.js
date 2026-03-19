@@ -42,9 +42,9 @@ const AddSpareParts = ({ navigation, route }) => {
 
         if (isInclusive) {
             const tax = (subtotal / 1.05) * 0.05;
-            return (subtotal - tax).toFixed(2);
+            return (subtotal - tax).toFixed(3);
         } else {
-            return subtotal.toFixed(2);
+            return subtotal.toFixed(3);
         }
     };
 
@@ -107,19 +107,19 @@ const AddSpareParts = ({ navigation, route }) => {
         const subtotal = parseFloat(unitPrice) * parseFloat(quantity);
 
         if (isInclusive) {
-            const spareTotalWithoutTax = (subtotal / 1.05).toFixed(2);
+            const spareTotalWithoutTax = (subtotal / 1.05).toFixed(3);
             return spareTotalWithoutTax;
         } else {
-            return subtotal.toFixed(2);
+            return subtotal.toFixed(3);
         }
     };
 
     const calculateTax = (unitPrice, quantity, isInclusive) => {
         const subtotal = parseFloat(unitPrice) * parseFloat(quantity);
         if (isInclusive) {
-            return (subtotal - (subtotal / 1.05)).toFixed(2);
+            return (subtotal - (subtotal / 1.05)).toFixed(3);
         } else {
-            return (subtotal * 0.05).toFixed(2);
+            return (subtotal * 0.05).toFixed(3);
         }
     };
 
@@ -127,7 +127,7 @@ const AddSpareParts = ({ navigation, route }) => {
         const unitPrice = selectedProduct.unitPrice ? selectedProduct.unitPrice.toString() : '0';
         const description = selectedProduct.productDescription || '';
         const defaultQuantity = "1";
-        const initialSubTotal = (parseFloat(unitPrice) * parseFloat(defaultQuantity)).toFixed(2);
+        const initialSubTotal = (parseFloat(unitPrice) * parseFloat(defaultQuantity)).toFixed(3);
         const tax = calculateTax(initialSubTotal, defaultQuantity, formData.isInclusive);
         const total = calculateTotal(initialSubTotal, tax)
         const spareTotalPrice = initialSubTotal
@@ -145,7 +145,7 @@ const AddSpareParts = ({ navigation, route }) => {
     };
 
     const calculateTotal = (spareTotalPrice, tax,) => {
-        return (parseFloat(spareTotalPrice) + parseFloat(tax)).toFixed(2);
+        return (parseFloat(spareTotalPrice) + parseFloat(tax)).toFixed(3);
     };
 
     useEffect(() => {

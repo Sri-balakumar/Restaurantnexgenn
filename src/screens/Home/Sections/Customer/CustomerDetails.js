@@ -323,15 +323,15 @@ const CustomerDetails = ({ navigation, route }) => {
                 <View style={styles.totalPriceContainer}>
                   <View style={styles.footerRow}>
                     <Text style={styles.footerLabel}>{t.untaxedAmount}</Text>
-                    <Text style={styles.footerLabel}>{untaxedAmount.toFixed(2)} {currency}</Text>
+                    <Text style={styles.footerLabel}>{untaxedAmount.toFixed(3)} {currency}</Text>
                   </View>
                   <View style={styles.footerRow}>
                     <Text style={styles.footerLabel}>{t.taxedAmount}</Text>
-                    <Text style={styles.footerLabel}>{taxedAmount.toFixed(2)} {currency}</Text>
+                    <Text style={styles.footerLabel}>{taxedAmount.toFixed(3)} {currency}</Text>
                   </View>
                   <View style={styles.footerRow}>
                     <Text style={styles.totalPriceLabel}>{t.totalAmount}</Text>
-                    <Text style={styles.totalPriceLabel}>{totalAmount.toFixed(2)} {currency}</Text>
+                    <Text style={styles.totalPriceLabel}>{totalAmount.toFixed(3)} {currency}</Text>
                   </View>
                 </View>
                 <Button backgroundColor={COLORS.primaryThemeColor} title={t.placeOrder} onPress={placeOrder} />

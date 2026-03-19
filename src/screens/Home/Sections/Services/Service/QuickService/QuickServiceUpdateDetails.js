@@ -281,15 +281,15 @@ const QuickServiceUpdateDetails = ({ route, navigation }) => {
         {sparePartsItems.length > 0 && <>
         <View style={styles.totalSection}>
           <Text style={styles.totalLabel}>Sub Total : </Text>
-          <Text style={styles.totalValue}>{subTotal.toFixed(2)}</Text>
+          <Text style={styles.totalValue}>{subTotal.toFixed(3)}</Text>
         </View>
           <View style={styles.totalSection}>
             <Text style={styles.totalLabel}>Tax : </Text>
-            <Text style={styles.totalValue}>{calculatedTax.toFixed(2)}</Text>
+            <Text style={styles.totalValue}>{calculatedTax.toFixed(3)}</Text>
           </View>
           <View style={styles.totalSection}>
             <Text style={styles.totalLabel}>Total : </Text>
-            <Text style={styles.totalValue}>{total.toFixed(2)}</Text>
+            <Text style={styles.totalValue}>{total.toFixed(3)}</Text>
           </View>
         </>
         }

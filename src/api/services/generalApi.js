@@ -1300,6 +1300,56 @@ export const fetchPaymentJournalsOdoo = async () => {
   }
 };
 
+// Fetch all pricelists from Odoo
+export const fetchPricelistsOdoo = async () => {
+  try {
+    const { baseUrl, headers } = await _buildOdooHeaders();
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: 'product.pricelist',
+          method: 'search_read',
+          args: [[]],
+          kwargs: { fields: ['id', 'name'], limit: 50 },
+        },
+      }),
+    });
+    const data = await response.json();
+    return data?.result || [];
+  } catch (e) {
+    return [];
+  }
+};
+
+// Fetch pricelist items (per-product prices) for a specific pricelist
+export const fetchPricelistItemsOdoo = async (pricelistId) => {
+  try {
+    const { baseUrl, headers } = await _buildOdooHeaders();
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: 'product.pricelist.item',
+          method: 'search_read',
+          args: [[['pricelist_id', '=', pricelistId]]],
+          kwargs: { fields: ['id', 'product_tmpl_id', 'product_id', 'fixed_price', 'compute_price', 'percent_price'], limit: 500 },
+        },
+      }),
+    });
+    const data = await response.json();
+    return data?.result || [];
+  } catch (e) {
+    return [];
+  }
+};
+
 // Fetch all POS payment methods from Odoo (Cash, Card, Talabat, Bank Transfer, etc.)
 export const fetchPosPaymentMethodsOdoo = async () => {
   try {
@@ -2028,7 +2078,7 @@ export const fetchPosOrderById = async (orderId) => {
           method: 'search_read',
           args: [[['id', '=', orderId]]],
           // include preset_id so clients can read the selected preset on the order
-          kwargs: { fields: ['id','name','state','amount_total','table_id','lines','create_date','user_id','partner_id','preset_id'] },
+          kwargs: { fields: ['id','name','state','amount_total','table_id','lines','create_date','user_id','partner_id','preset_id','pricelist_id'] },
         },
         id: new Date().getTime(),
       }),
@@ -2060,7 +2110,7 @@ export const fetchOrderLinesByIds = async (lineIds = []) => {
           model: 'pos.order.line',
           method: 'search_read',
           args: [[['id', 'in', lineIds]]],
-          kwargs: { fields: ['id','product_id','qty','price_unit','price_subtotal','price_subtotal_incl','tax_ids','discount','name','full_product_name'] },
+          kwargs: { fields: ['id','product_id','qty','price_unit','price_subtotal','price_subtotal_incl','tax_ids','discount','name','full_product_name','customer_note'] },
         },
         id: new Date().getTime(),
       }),
@@ -2231,7 +2281,7 @@ export const recomputePosOrderTotals = async (orderId) => {
 };
 
 // Update an existing pos.order.line (qty, price_unit, name, etc.)
-export const updateOrderLineOdoo = async ({ lineId, qty, price_unit, name, discount, orderId = null } = {}) => {
+export const updateOrderLineOdoo = async ({ lineId, qty, price_unit, name, discount, note, orderId = null } = {}) => {
   try {
     if (!lineId) throw new Error('lineId is required');
     const vals = {};
@@ -2247,24 +2297,48 @@ export const updateOrderLineOdoo = async ({ lineId, qty, price_unit, name, disco
     }
     if (typeof name !== 'undefined') vals.name = name;
     if (typeof discount !== 'undefined') vals.discount = Number(discount);
+    if (typeof note !== 'undefined') {
+      // customer_note = plain text shown in Odoo's "Add a Note" textarea popup
+      vals.customer_note = note || '';
+      // note = JSON array for getInternalNotes() / TagsList display
+      if (note && String(note).trim()) {
+        vals.note = JSON.stringify([{ text: String(note) }]);
+      } else {
+        vals.note = '[]';
+        vals.customer_note = '';
+      }
+    }
 
     const { baseUrl, headers } = await _buildOdooHeaders();
-    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'call',
-        params: {
-          model: 'pos.order.line',
-          method: 'write',
-          args: [[lineId], vals],
-          kwargs: {},
-        },
-        id: new Date().getTime(),
-      }),
-    });
-    const data = await response.json();
+
+    const doWrite = async (writeVals) => {
+      const resp = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'call',
+          params: {
+            model: 'pos.order.line',
+            method: 'write',
+            args: [[lineId], writeVals],
+            kwargs: {},
+          },
+          id: new Date().getTime(),
+        }),
+      });
+      return await resp.json();
+    };
+
+    let data = await doWrite(vals);
+
+    // If write fails (field doesn't exist), retry without note fields
+    if (data.error && (vals.customer_note || vals.note)) {
+      const retryVals = { ...vals };
+      delete retryVals.customer_note;
+      delete retryVals.note;
+      data = await doWrite(retryVals);
+    }
 
     if (data.error) {
       return { error: data.error };

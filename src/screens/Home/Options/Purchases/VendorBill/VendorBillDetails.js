@@ -94,7 +94,7 @@ const VendorBillDetails = ({ navigation, route }) => {
           </View>
           <View style={styles.totalSection}>
             <Text style={styles.totalLabel}>Taxes : </Text>
-            <Text style={styles.totalValue}>{((details.total_amount)-(details.untaxed_total_amount)).toFixed(2)}</Text>
+            <Text style={styles.totalValue}>{((details.total_amount)-(details.untaxed_total_amount)).toFixed(3)}</Text>
           </View>
           <View style={styles.totalSection}>
             <Text style={styles.totalLabel}>Total : </Text>

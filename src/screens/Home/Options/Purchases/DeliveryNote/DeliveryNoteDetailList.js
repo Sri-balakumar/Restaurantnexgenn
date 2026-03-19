@@ -32,8 +32,8 @@ const DeliveryNoteDetailList = ({ item, onPress }) => {
       </View>
       <View style={styles.rightColumn}>
         <Text style={styles.content}>{taxes.taxes_name}</Text>
-        <Text style={styles.content}>{unit_price.toFixed(2)}</Text>
-        <Text style={styles.content}>{sub_total.toFixed(2)}</Text> 
+        <Text style={styles.content}>{unit_price.toFixed(3)}</Text>
+        <Text style={styles.content}>{sub_total.toFixed(3)}</Text> 
       </View>
       </View>
     </TouchableOpacity>

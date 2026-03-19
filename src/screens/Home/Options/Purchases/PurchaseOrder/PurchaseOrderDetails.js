@@ -54,7 +54,7 @@ const PurchaseOrderDetails = ({ navigation, route }) => {
     //         taxes += item.tax_value || item.tax || 0;
     //     });
     //     return {
-    //         taxTotal: taxes.toFixed(2),
+    //         taxTotal: taxes.toFixed(3),
     //     };
     // }, [purchaseOrderLines]);
     

@@ -31,9 +31,9 @@ const CreateInvoice = ({ navigation, route }) => {
   }), [cart]);
 
   const subtotal = useMemo(() => items.reduce((s, it) => s + (it.subtotal || 0), 0), [items]);
-  const tax = +(subtotal * 0.00).toFixed(2); // placeholder tax 0%
-  const service = +(subtotal * 0.00).toFixed(2); // placeholder service charge
-  const total = +(subtotal + tax + service).toFixed(2);
+  const tax = +(subtotal * 0.00).toFixed(3); // placeholder tax 0%
+  const service = +(subtotal * 0.00).toFixed(3); // placeholder service charge
+  const total = +(subtotal + tax + service).toFixed(3);
 
   const renderLine = ({ item, index }) => (
     <View key={item.id} style={{ flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: index === items.length - 1 ? 0 : 1, borderColor: '#f0f0f0' }}>

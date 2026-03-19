@@ -101,8 +101,8 @@ const VendorBillFormTabs = ({ route, navigation }) => {
 
     setFormData((prevFormData) => ({
       ...prevFormData,
-      taxTotal: taxes.toFixed(2),
-      totalAmount: total.toFixed(2),
+      taxTotal: taxes.toFixed(3),
+      totalAmount: total.toFixed(3),
     }));
   };
 
