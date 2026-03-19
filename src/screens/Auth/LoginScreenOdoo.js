@@ -151,8 +151,6 @@ const LoginScreenOdoo = () => {
 
         // Always save credentials so Autofill can use them next time
         await AsyncStorage.setItem('saved_credentials', JSON.stringify({ username, password }));
-        // Persist toggle preference
-        await AsyncStorage.setItem('autofill_enabled', JSON.stringify(rememberMe));
 
         setUser(userData);
         navigation.navigate("AppNavigator");
@@ -182,14 +180,6 @@ const LoginScreenOdoo = () => {
             style={styles.logo}
             resizeMode="contain"
           />
-          <TouchableOpacity
-            style={styles.gearBtn}
-            onPress={() => navigation.navigate('DeviceSetup')}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.gearIcon}>⚙️</Text>
-          </TouchableOpacity>
-
           {/* Language Toggle */}
           <View style={styles.langToggleWrap}>
             <TouchableOpacity
@@ -265,22 +255,13 @@ const LoginScreenOdoo = () => {
                 value={rememberMe}
                 onValueChange={async (val) => {
                   setRememberMe(val);
+                  await AsyncStorage.setItem('autofill_enabled', val ? 'true' : 'false');
                   if (val) {
                     try {
-                      // 1. Get server URL and DB
-                      const deviceUrl = await AsyncStorage.getItem('device_server_url');
-                      const deviceDb = await AsyncStorage.getItem('device_db_name');
-                      let session = await AsyncStorage.getItem('odoo_session_id');
-                      const rawUrl = deviceUrl || DEFAULT_ODOO_BASE_URL;
-                      const baseUrl = rawUrl.trim().replace(/\/+$/, '');
-                      const finalUrl = baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`;
-                      const dbName = deviceDb || DEFAULT_ODOO_DB;
-
-                      // 2. Collect credentials from all available sources
                       let foundUser = null;
                       let foundPass = null;
 
-                      // Source A: saved_credentials (from a previous login with toggle ON)
+                      // Source 1: saved_credentials (always saved on every successful login)
                       const saved = await AsyncStorage.getItem('saved_credentials');
                       if (saved) {
                         const parsed = JSON.parse(saved);
@@ -288,7 +269,7 @@ const LoginScreenOdoo = () => {
                         if (parsed.password) foundPass = parsed.password;
                       }
 
-                      // Source B: userData from last login (always saved on login)
+                      // Source 2: userData fallback
                       if (!foundUser || !foundPass) {
                         const udRaw = await AsyncStorage.getItem('userData');
                         if (udRaw) {
@@ -298,86 +279,10 @@ const LoginScreenOdoo = () => {
                         }
                       }
 
-                      // 3. If no session, try to get one by re-authenticating
-                      if (!session) {
-                        const authUser = foundUser || DEV_ODOO_USERNAME;
-                        const authPass = foundPass || DEV_ODOO_PASSWORD;
+                      if (foundUser) setUsername(foundUser);
+                      if (foundPass) setPassword(foundPass);
 
-                        try {
-                          const authRes = await axios.post(
-                            `${finalUrl}/web/session/authenticate`,
-                            {
-                              jsonrpc: '2.0', method: 'call',
-                              params: { db: dbName, login: authUser, password: authPass },
-                            },
-                            { headers: { 'Content-Type': 'application/json' }, timeout: 8000 }
-                          );
-                          const authData = authRes.data?.result;
-                          if (authData?.uid) {
-                            session = authData.session_id;
-                            if (!session) {
-                              const cookieHeader = authRes.headers['set-cookie'];
-                              if (cookieHeader) {
-                                const cookieStr = Array.isArray(cookieHeader) ? cookieHeader.join(';') : cookieHeader;
-                                const match = cookieStr.match(/session_id=([^;,\s]+)/);
-                                if (match) session = match[1];
-                              }
-                            }
-                            if (session) await AsyncStorage.setItem('odoo_session_id', session);
-                          }
-                        } catch (_) {}
-                      }
-
-                      // 4. Fetch username from Odoo DB (more accurate than saved data)
-                      let filledUser = false;
-                      let filledPass = false;
-
-                      if (session && finalUrl) {
-                        const headers = {
-                          'Content-Type': 'application/json',
-                          'Cookie': `session_id=${session}`,
-                          'X-Openerp-Session-Id': session,
-                          ...(dbName ? { 'X-Odoo-Database': dbName } : {}),
-                        };
-
-                        try {
-                          const res = await axios.post(
-                            `${finalUrl}/web/dataset/call_kw`,
-                            {
-                              jsonrpc: '2.0', method: 'call',
-                              params: {
-                                model: 'res.users', method: 'search_read',
-                                args: [[]], kwargs: {
-                                  fields: ['login', 'name'],
-                                  limit: 1,
-                                  order: 'write_date desc',
-                                  context: {},
-                                },
-                              },
-                            },
-                            { headers, timeout: 8000 }
-                          );
-                          const user = res.data?.result?.[0];
-                          if (user?.login) {
-                            setUsername(user.login);
-                            filledUser = true;
-                          }
-                        } catch (_) {}
-                      }
-
-                      // 5. Fill username from saved sources if API didn't provide it
-                      if (!filledUser && foundUser) {
-                        setUsername(foundUser);
-                        filledUser = true;
-                      }
-
-                      // 6. Fill password from saved sources
-                      if (foundPass) {
-                        setPassword(foundPass);
-                        filledPass = true;
-                      }
-
-                      if (filledUser || filledPass) {
+                      if (foundUser && foundPass) {
                         showToastMessage(t.credentialsFilled);
                       } else {
                         showToastMessage(t.noSavedCredentials);
@@ -389,7 +294,6 @@ const LoginScreenOdoo = () => {
                     // Clear fields when toggled OFF
                     setUsername('');
                     setPassword('');
-                    await AsyncStorage.setItem('autofill_enabled', 'false');
                   }
                 }}
                 trackColor={{ false: '#ddd', true: ORANGE + '80' }}
@@ -539,20 +443,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: FONT_FAMILY.urbanistBold,
     letterSpacing: 0.5,
-  },
-  gearBtn: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  gearIcon: {
-    fontSize: 20,
   },
   // Language toggle styles
   langToggleWrap: {
