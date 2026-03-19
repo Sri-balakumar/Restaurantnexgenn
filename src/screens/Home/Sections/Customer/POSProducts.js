@@ -705,7 +705,10 @@ const POSProducts = ({ navigation, route }) => {
 
       Alert.alert(t.paymentSuccessful, t.orderClosedSuccess, [{
         text: t.ok || 'OK',
-        onPress: () => { isTakeaway ? navigation.navigate('Home') : navigation.navigate('TablesScreen'); },
+        onPress: () => {
+          // Go back to the beginning so tables refresh properly
+          navigation.reset({ index: 0, routes: [{ name: 'AppNavigator' }] });
+        },
       }]);
     } catch (e) {
       Alert.alert(t.paymentFailed, e?.message || 'Failed to process payment');
