@@ -7,7 +7,10 @@ import { NavigationHeader } from '@components/Header';
 import { DetailField } from '@components/common/Detail';
 import { Button } from '@components/common/Button';
 
+<<<<<<< HEAD
 import { useTranslation } from '@hooks';
+=======
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 import { useProductStore } from '@stores/product';
 import { Ionicons, AntDesign } from '@expo/vector-icons';
 import { EmptyState } from '@components/common/empty';
@@ -21,7 +24,10 @@ import Toast from 'react-native-toast-message';
 import { useCurrencyStore } from '@stores/currency';
 
 const CustomerDetails = ({ navigation, route }) => {
+<<<<<<< HEAD
   const { t } = useTranslation();
+=======
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   const { details } = route?.params || {};
   const currentUser = useAuthStore(state => state.user);
   const { 
@@ -128,7 +134,11 @@ const CustomerDetails = ({ navigation, route }) => {
             </TouchableOpacity>
             <TextInput
               style={styles.textInput}
+<<<<<<< HEAD
               placeholder={t.quantity}
+=======
+              placeholder="Quantity"
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
               value={item.quantity.toString()}
               onChangeText={(text) => handleQuantityChange(item.id, text)}
               keyboardType="numeric"
@@ -138,10 +148,17 @@ const CustomerDetails = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
           <View style={styles.priceContainer}>
+<<<<<<< HEAD
             <Text style={styles.label}>{t.price}</Text>
             <TextInput
               style={styles.textInput}
               placeholder={t.price}
+=======
+            <Text style={styles.label}>Price</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Price"
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
               value={item.price.toString()}
               onChangeText={(text) => handlePriceChange(item.id, text)}
               keyboardType="numeric"
@@ -213,8 +230,13 @@ const CustomerDetails = ({ navigation, route }) => {
       if (missing.length > 0) {
         Toast.show({
           type: 'error',
+<<<<<<< HEAD
           text1: t.missingRequiredData,
           text2: `${t.pleaseProvide} ${missing.join(', ')}`,
+=======
+          text1: 'Missing required data',
+          text2: `Please provide: ${missing.join(', ')}`,
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           position: 'bottom',
         });
         return;
@@ -257,8 +279,13 @@ const CustomerDetails = ({ navigation, route }) => {
       if (response.success === 'true' && quotationId) {
         Toast.show({
           type: 'success',
+<<<<<<< HEAD
           text1: t.success,
           text2: t.quotationCreated,
+=======
+          text1: 'Success',
+          text2: 'Quotation created successfully',
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           position: 'bottom',
         });
         // Clear current customer's cart
@@ -272,15 +299,24 @@ const CustomerDetails = ({ navigation, route }) => {
       } else {
         Toast.show({
           type: 'error',
+<<<<<<< HEAD
           text1: t.error,
           text2: response.message || t.quotationFailed,
+=======
+          text1: 'ERROR',
+          text2: response.message || 'Quotation creation failed',
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           position: 'bottom',
         });
       }
     } catch (err) {
       Toast.show({
         type: 'error',
+<<<<<<< HEAD
         text1: t.error,
+=======
+        text1: 'ERROR',
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         text2: err?.message || 'Unexpected error in Place Order',
         position: 'bottom',
       });
@@ -289,28 +325,48 @@ const CustomerDetails = ({ navigation, route }) => {
 
   return (
     <SafeAreaView>
+<<<<<<< HEAD
       <NavigationHeader title={t.orderSummary} onBackPress={() => navigation.goBack()} />
       <RoundedScrollContainer>
         <TouchableOpacity style={styles.itemContainer} activeOpacity={0.7}>
           <DetailField label={t.customerName} value={details.name} multiline={true} />
          <DetailField
   label={t.mob}
+=======
+      <NavigationHeader title="Order Summary" onBackPress={() => navigation.goBack()} />
+      <RoundedScrollContainer>
+        <TouchableOpacity style={styles.itemContainer} activeOpacity={0.7}>
+          <DetailField label="Customer Name" value={details.name} multiline={true} />
+         <DetailField
+  label="MOB"
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   value={details.customer_mobile || details.mobile || details.phone || '-'}
 />
 
         </TouchableOpacity>
         <Button
+<<<<<<< HEAD
           title={t.addProductsBtn}
+=======
+          title="Add Product(s)"
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           width="50%"
           alignSelf="flex-end"
           marginTop={10}
           onPress={() => navigation.navigate('Products', { fromCustomerDetails: details })}
         />
         {products.length === 0 ? (
+<<<<<<< HEAD
           <EmptyState imageSource={require('@assets/images/EmptyData/empty_cart.png')} message={t.itemsAreEmpty} />
         ) : (
           <View style={styles.itemContainer}>
             <Text style={styles.totalItemsText}>Total {products.length} {products.length !== 1 ? t.items : t.item}</Text>
+=======
+          <EmptyState imageSource={require('@assets/images/EmptyData/empty_cart.png')} message="Items are empty" />
+        ) : (
+          <View style={styles.itemContainer}>
+            <Text style={styles.totalItemsText}>Total {products.length} item{products.length !== 1 ? 's' : ''}</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             <FlatList
               data={products}
               keyExtractor={(item) => item.id}
@@ -322,6 +378,7 @@ const CustomerDetails = ({ navigation, route }) => {
               <View style={styles.footerContainer}>
                 <View style={styles.totalPriceContainer}>
                   <View style={styles.footerRow}>
+<<<<<<< HEAD
                     <Text style={styles.footerLabel}>{t.untaxedAmount}</Text>
                     <Text style={styles.footerLabel}>{untaxedAmount.toFixed(2)} {currency}</Text>
                   </View>
@@ -335,6 +392,21 @@ const CustomerDetails = ({ navigation, route }) => {
                   </View>
                 </View>
                 <Button backgroundColor={COLORS.primaryThemeColor} title={t.placeOrder} onPress={placeOrder} />
+=======
+                    <Text style={styles.footerLabel}>Untaxed Amount:</Text>
+                    <Text style={styles.footerLabel}>{untaxedAmount.toFixed(2)} {currency}</Text>
+                  </View>
+                  <View style={styles.footerRow}>
+                    <Text style={styles.footerLabel}>Taxed Amount:</Text>
+                    <Text style={styles.footerLabel}>{taxedAmount.toFixed(2)} {currency}</Text>
+                  </View>
+                  <View style={styles.footerRow}>
+                    <Text style={styles.totalPriceLabel}>Total Amount:</Text>
+                    <Text style={styles.totalPriceLabel}>{totalAmount.toFixed(2)} {currency}</Text>
+                  </View>
+                </View>
+                <Button backgroundColor={COLORS.primaryThemeColor} title={'Place Order'} onPress={placeOrder} />
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
               </View>
             )}
           </View>

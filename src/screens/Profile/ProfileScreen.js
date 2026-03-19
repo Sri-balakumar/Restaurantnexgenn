@@ -1,21 +1,31 @@
 import React from 'react';
+<<<<<<< HEAD
 import { View, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+=======
+import { View, ScrollView, StyleSheet } from 'react-native';
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 import Text from '@components/Text';
 import { SafeAreaView } from '@components/containers';
 import { version as appVersion } from '../../../package.json';
 import { COLORS, FONT_FAMILY } from '@constants/theme';
 import { useAuthStore } from '@stores/auth';
 import { MaterialIcons } from '@expo/vector-icons';
+<<<<<<< HEAD
 import { useTranslation } from '@hooks';
 import { useLanguageStore } from '@stores/language';
+=======
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
 const NAVY = '#2E294E';
 const ORANGE = '#F47B20';
 
 const ProfileScreen = () => {
   const userDetails = useAuthStore(state => state.user);
+<<<<<<< HEAD
   const { t, language, isRTL } = useTranslation();
   const setLanguage = useLanguageStore((state) => state.setLanguage);
+=======
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
   const name = userDetails?.related_profile?.name || userDetails?.name || userDetails?.user_name || 'User';
   const company = userDetails?.company_id
@@ -26,6 +36,7 @@ const ProfileScreen = () => {
   const initials = name.split(' ').map(s => s[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
 
   const detailKeys = [
+<<<<<<< HEAD
     { key: 'uid', label: t.userId, icon: 'badge' },
     { key: 'login', label: t.login, icon: 'alternate-email' },
     { key: 'db', label: t.database, icon: 'storage' },
@@ -36,6 +47,15 @@ const ProfileScreen = () => {
   const rtlTextStyle = isRTL ? { textAlign: 'right', writingDirection: 'rtl' } : {};
   const rtlRowStyle = isRTL ? { flexDirection: 'row-reverse' } : {};
 
+=======
+    { key: 'uid', label: 'User ID', icon: 'badge' },
+    { key: 'login', label: 'Login', icon: 'alternate-email' },
+    { key: 'db', label: 'Database', icon: 'storage' },
+    { key: 'partner_id', label: 'Partner', icon: 'person-outline' },
+    { key: 'company_id', label: 'Company', icon: 'business' },
+  ];
+
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   return (
     <SafeAreaView backgroundColor={NAVY}>
       <ScrollView
@@ -47,6 +67,7 @@ const ProfileScreen = () => {
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initials || 'U'}</Text>
           </View>
+<<<<<<< HEAD
           <Text style={[styles.name, rtlTextStyle]}>{name}</Text>
           {company ? <Text style={[styles.company, rtlTextStyle]}>{company}</Text> : null}
           {login ? <Text style={[styles.loginText, rtlTextStyle]}>{login}</Text> : null}
@@ -68,13 +89,24 @@ const ProfileScreen = () => {
               <Text style={[styles.langBtnText, language === 'ar' && styles.langBtnTextActive]}>عربي</Text>
             </TouchableOpacity>
           </View>
+=======
+          <Text style={styles.name}>{name}</Text>
+          {company ? <Text style={styles.company}>{company}</Text> : null}
+          {login ? <Text style={styles.loginText}>{login}</Text> : null}
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         </View>
 
         {/* ── Account Details card ── */}
         <View style={styles.card}>
+<<<<<<< HEAD
           <View style={[styles.cardHeader, rtlRowStyle]}>
             <View style={styles.cardDot} />
             <Text style={[styles.cardTitle, rtlTextStyle]}>{t.accountDetails}</Text>
+=======
+          <View style={styles.cardHeader}>
+            <View style={styles.cardDot} />
+            <Text style={styles.cardTitle}>Account Details</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           </View>
 
           {detailKeys.map(({ key, label, icon }) => {
@@ -87,6 +119,7 @@ const ProfileScreen = () => {
             if (!display || display === 'null') return null;
 
             return (
+<<<<<<< HEAD
               <View key={key} style={[styles.row, rtlRowStyle]}>
                 <View style={[styles.rowLeft, rtlRowStyle]}>
                   <View style={styles.iconBox}>
@@ -95,12 +128,26 @@ const ProfileScreen = () => {
                   <Text style={[styles.rowLabel, rtlTextStyle]}>{label}</Text>
                 </View>
                 <Text style={[styles.rowValue, rtlTextStyle]} numberOfLines={1}>{display}</Text>
+=======
+              <View key={key} style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBox}>
+                    <MaterialIcons name={icon} size={16} color={ORANGE} />
+                  </View>
+                  <Text style={styles.rowLabel}>{label}</Text>
+                </View>
+                <Text style={styles.rowValue} numberOfLines={1}>{display}</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
               </View>
             );
           })}
         </View>
 
+<<<<<<< HEAD
         <Text style={styles.version}>{t.version} {appVersion}</Text>
+=======
+        <Text style={styles.version}>Version {appVersion}</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       </ScrollView>
     </SafeAreaView>
   );
@@ -222,6 +269,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: FONT_FAMILY.urbanistRegular,
   },
+<<<<<<< HEAD
   langToggleWrap: {
     flexDirection: 'row',
     backgroundColor: 'rgba(255,255,255,0.15)',
@@ -245,6 +293,8 @@ const styles = StyleSheet.create({
   langBtnTextActive: {
     color: '#fff',
   },
+=======
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 });
 
 export default ProfileScreen;

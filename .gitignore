@@ -29,7 +29,10 @@ yarn-error.*
 *.pem
 
 # local env files
+<<<<<<< HEAD
 .env
+=======
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 .env*.local
 
 # typescript

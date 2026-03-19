@@ -53,6 +53,10 @@
         "android.permission.ACCESS_NETWORK_STATE"
       ],
       "package": "com.danat.alphalize",
+<<<<<<< HEAD
+=======
+      "usesCleartextTraffic": true,
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       "config": {
         "googleMaps": {
           "apiKey": ""
@@ -64,6 +68,7 @@
         "expo-build-properties",
         {
           "android": {
+<<<<<<< HEAD
             "usesCleartextTraffic": true,
             "minSdkVersion": 24,
             "compileSdkVersion": 35,
@@ -88,5 +93,21 @@
       }
     },
     "owner": "gurucharan_vijay"
+=======
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ],
+    "cli": {
+      "appVersionSource": "local"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "58c90cb6-e222-4e8e-b9c5-08b43ea68101"
+      }
+    },
+    "owner": "sribalakumarr"
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   }
 }

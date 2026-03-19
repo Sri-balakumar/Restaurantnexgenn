@@ -1,6 +1,10 @@
 import { FONT_FAMILY } from '@constants/theme';
 import { BaseToast, ErrorToast } from 'react-native-toast-message';
+<<<<<<< HEAD
 const CustomToast = {
+=======
+export default CustomToast = {
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
     success: (props) => (
         <BaseToast
             {...props}
@@ -34,6 +38,10 @@ const CustomToast = {
             }}
         />
     ),
+<<<<<<< HEAD
 };
 
 export default CustomToast;
+=======
+};
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f

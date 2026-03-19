@@ -14,6 +14,10 @@ import LoginScreenOdoo from "@screens/Auth/LoginScreenOdoo";
 import { DeviceSetupScreen } from "@screens/DeviceSetup";
 import DeviceQRScannerScreen from "@screens/DeviceSetup/DeviceQRScannerScreen";
 import { DeviceRegistryScreen } from "@screens/DeviceRegistry";
+<<<<<<< HEAD
+=======
+import CategoriesScreen from "@screens";
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 import Scanner from "@components/Scanner";
 // import Barcode from "@components/Scanner"; // Uncomment and fix if Barcode is a named export or separate file
 import SalesOrderChoice from "@screens/Home/Sections/Customer/SalesOrderChoice";

@@ -5,7 +5,10 @@ import { fetchRestaurantTablesOdoo, fetchOpenOrdersByTable, createDraftPosOrderO
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from '@components/containers';
 import { NavigationHeader } from '@components/Header';
+<<<<<<< HEAD
 import { useTranslation } from '@hooks';
+=======
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
 const { width: windowWidth, height: windowHeight } = Dimensions.get('window');
 
@@ -29,7 +32,10 @@ const TableCard = React.memo(({ children, style }) => {
 });
 
 const TablesScreen = ({ navigation, route }) => {
+<<<<<<< HEAD
   const { t } = useTranslation();
+=======
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   const [tables, setTables] = useState([]);
   const [floors, setFloors] = useState([]);
   const [selectedFloorId, setSelectedFloorId] = useState(null);
@@ -112,7 +118,11 @@ const TablesScreen = ({ navigation, route }) => {
         }
       }
     } catch (err) {
+<<<<<<< HEAD
       try { alert(t.couldNotOpenTable); } catch (e) {}
+=======
+      try { alert('Could not open/create order for table.'); } catch (e) {}
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
     } finally {
       setTableLoadingState(tableId, false);
       setGlobalLoading(false);
@@ -136,7 +146,11 @@ const TablesScreen = ({ navigation, route }) => {
         }
       });
       const floorList = Object.keys(floorMap).map(id => ({ id: Number(id), name: floorMap[id] }));
+<<<<<<< HEAD
       if (floorList.length === 0) floorList.push({ id: 0, name: t.mainFloor });
+=======
+      if (floorList.length === 0) floorList.push({ id: 0, name: 'Main Floor' });
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       setFloors(floorList);
       setSelectedFloorId(prev => prev ?? floorList[0].id);
       await refreshTablesWithOpenOrders();
@@ -168,7 +182,11 @@ const TablesScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={s.container}>
+<<<<<<< HEAD
       <NavigationHeader title={t.selectTable} onBackPress={() => navigation.goBack()} logo={false} />
+=======
+      <NavigationHeader title="Select Table" onBackPress={() => navigation.goBack()} logo={false} />
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
       {/* Centered logo with glow */}
       <View style={s.logoWrap}>
@@ -181,7 +199,11 @@ const TablesScreen = ({ navigation, route }) => {
         <View style={s.globalOverlay}>
           <View style={s.globalOverlayBox}>
             <ActivityIndicator size="large" color="#F47B20" />
+<<<<<<< HEAD
             <Text style={s.globalOverlayText}>{t.openingTable}</Text>
+=======
+            <Text style={s.globalOverlayText}>Opening table...</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           </View>
         </View>
       )}
@@ -189,7 +211,11 @@ const TablesScreen = ({ navigation, route }) => {
       {loading ? (
         <View style={s.loaderWrap}>
           <ActivityIndicator size="large" color="#F47B20" />
+<<<<<<< HEAD
           <Text style={s.loaderText}>{t.loadingTables}</Text>
+=======
+          <Text style={s.loaderText}>Loading tables...</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         </View>
       ) : (
         <>
@@ -214,6 +240,7 @@ const TablesScreen = ({ navigation, route }) => {
           <View style={s.statsRow}>
             <View style={s.statItem}>
               <View style={[s.statDot, { backgroundColor: '#7c3aed' }]} />
+<<<<<<< HEAD
               <Text style={s.statText}>{openCount} {t.occupied}</Text>
             </View>
             <View style={s.statItem}>
@@ -222,6 +249,16 @@ const TablesScreen = ({ navigation, route }) => {
             </View>
             <View style={s.statItem}>
               <Text style={s.statTotal}>{floorTables.length} {t.total}</Text>
+=======
+              <Text style={s.statText}>{openCount} Occupied</Text>
+            </View>
+            <View style={s.statItem}>
+              <View style={[s.statDot, { backgroundColor: '#22c55e' }]} />
+              <Text style={s.statText}>{freeCount} Available</Text>
+            </View>
+            <View style={s.statItem}>
+              <Text style={s.statTotal}>{floorTables.length} Total</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             </View>
           </View>
 

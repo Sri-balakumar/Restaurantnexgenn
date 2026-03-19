@@ -10,7 +10,10 @@ import { OverlayLoader } from '@components/Loader';
 import { RoundedContainer, SafeAreaView, SearchContainer } from '@components/containers';
 import styles from './styles';
 import useDebouncedSearch from '@hooks/useDebouncedSearch';
+<<<<<<< HEAD
 import { useTranslation } from '@hooks';
+=======
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 import Toast from 'react-native-toast-message';
 import { useProductStore } from '@stores/product';
 
@@ -24,7 +27,10 @@ const ProductsScreen = ({ navigation, route }) => {
     : null;
 
   const { fromCustomerDetails } = route.params || {};
+<<<<<<< HEAD
   const { t } = useTranslation();
+=======
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   const isFocused = useIsFocused();
   const { addProduct, setCurrentCustomer } = useProductStore();
 
@@ -127,7 +133,11 @@ const ProductsScreen = ({ navigation, route }) => {
       return (
         <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 20 }}>
           <Text style={{ color: '#dc2626', fontWeight: '700', fontSize: 14, marginBottom: 8 }}>
+<<<<<<< HEAD
             {t.failedToLoadProducts}
+=======
+            Failed to load products
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           </Text>
           <Text style={{ color: '#374151', fontSize: 12, marginBottom: 16, lineHeight: 18 }}>
             {fetchError}
@@ -136,7 +146,11 @@ const ProductsScreen = ({ navigation, route }) => {
             onPress={() => doFetch({ searchText, posCategoryId })}
             style={{ backgroundColor: '#111827', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 20, alignSelf: 'flex-start' }}
           >
+<<<<<<< HEAD
             <Text style={{ color: '#fff', fontWeight: '700' }}>{t.retry}</Text>
+=======
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Retry</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           </TouchableOpacity>
         </ScrollView>
       );
@@ -146,14 +160,22 @@ const ProductsScreen = ({ navigation, route }) => {
       return (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30 }}>
           <Text style={{ color: '#888', fontSize: 14, textAlign: 'center', marginBottom: 16 }}>
+<<<<<<< HEAD
             {t.noProductsFound}{posCategoryId ? ` for category #${posCategoryId}` : ''}.
+=======
+            No products found{posCategoryId ? ` for category #${posCategoryId}` : ''}.
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           </Text>
           {!passedFilteredProducts && (
             <TouchableOpacity
               onPress={() => doFetch({ searchText, posCategoryId })}
               style={{ backgroundColor: '#111827', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 20 }}
             >
+<<<<<<< HEAD
               <Text style={{ color: '#fff', fontWeight: '700' }}>{t.retry}</Text>
+=======
+              <Text style={{ color: '#fff', fontWeight: '700' }}>Retry</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             </TouchableOpacity>
           )}
         </View>
@@ -176,12 +198,20 @@ const ProductsScreen = ({ navigation, route }) => {
   return (
     <SafeAreaView>
       <NavigationHeader
+<<<<<<< HEAD
         title={route?.params?.categoryName ? `${route.params.categoryName}` : t.products}
         onBackPress={handleBack}
         logo={false}
       />
       <SearchContainer
         placeholder={t.searchProducts}
+=======
+        title={route?.params?.categoryName ? `${route.params.categoryName}` : 'Products'}
+        onBackPress={handleBack}
+      />
+      <SearchContainer
+        placeholder="Search Products"
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         onChangeText={handleSearchTextChange}
         value={searchText}
       />
@@ -193,10 +223,17 @@ const ProductsScreen = ({ navigation, route }) => {
       <Modal visible={quickAddVisible} transparent animationType="fade" onRequestClose={() => setQuickAddVisible(false)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }} onPress={() => setQuickAddVisible(false)}>
           <Pressable style={{ width: '88%', backgroundColor: '#fff', borderRadius: 12, padding: 16 }} onPress={(e) => e.stopPropagation()}>
+<<<<<<< HEAD
             <Text style={{ fontSize: 16, fontWeight: '800', marginBottom: 8 }}>{t.addItem}</Text>
             <Text style={{ fontSize: 14, marginBottom: 12, color: '#374151' }}>{quickProduct?.product_name || quickProduct?.name || 'Product'}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <Text style={{ fontSize: 16, fontWeight: '700' }}>{t.quantity}</Text>
+=======
+            <Text style={{ fontSize: 16, fontWeight: '800', marginBottom: 8 }}>Add Item</Text>
+            <Text style={{ fontSize: 14, marginBottom: 12, color: '#374151' }}>{quickProduct?.product_name || quickProduct?.name || 'Product'}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={{ fontSize: 16, fontWeight: '700' }}>Quantity</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <TouchableOpacity onPressIn={() => setQuickQty(q => Math.max(1, q - 1))} style={{ backgroundColor: '#f3f4f6', width: 56, height: 56, borderRadius: 28, marginRight: 8, alignItems: 'center', justifyContent: 'center' }}>
                   <Text style={{ fontSize: 28, fontWeight: '800' }}>-</Text>
@@ -210,7 +247,11 @@ const ProductsScreen = ({ navigation, route }) => {
             <View style={{ height: 1, backgroundColor: '#e5e7eb', marginVertical: 12 }} />
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
               <TouchableOpacity onPress={() => setQuickAddVisible(false)} style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: '#f3f4f6', marginRight: 10 }}>
+<<<<<<< HEAD
                 <Text style={{ fontWeight: '700' }}>{t.cancel}</Text>
+=======
+                <Text style={{ fontWeight: '700' }}>Cancel</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
               </TouchableOpacity>
               <TouchableOpacity onPress={() => {
                 try {
@@ -233,7 +274,11 @@ const ProductsScreen = ({ navigation, route }) => {
                   setQuickAddVisible(false);
                 }
               }} style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: '#111827' }}>
+<<<<<<< HEAD
                 <Text style={{ color: '#fff', fontWeight: '800' }}>{t.add}</Text>
+=======
+                <Text style={{ color: '#fff', fontWeight: '800' }}>Add</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
               </TouchableOpacity>
             </View>
           </Pressable>
@@ -243,7 +288,11 @@ const ProductsScreen = ({ navigation, route }) => {
       <Modal visible={confirmVisible} transparent animationType="fade" onRequestClose={() => setConfirmVisible(false)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }}>
           <Pressable style={{ width: '76%', backgroundColor: '#fff', borderRadius: 12, padding: 16 }}>
+<<<<<<< HEAD
             <Text style={{ fontSize: 16, fontWeight: '800', marginBottom: 6 }}>{t.addedToCart}</Text>
+=======
+            <Text style={{ fontSize: 16, fontWeight: '800', marginBottom: 6 }}>Added to Cart</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             <Text style={{ fontSize: 14, color: '#374151', marginBottom: 12 }}>{quickProduct?.product_name || quickProduct?.name || 'Product'} × {quickQty}</Text>
           </Pressable>
         </Pressable>

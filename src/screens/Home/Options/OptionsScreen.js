@@ -6,7 +6,11 @@ import { ListItem } from '@components/Options';
 import { formatData } from '@utils/formatters';
 import { EmptyItem } from '@components/common/empty';
 import { COLORS } from '@constants/theme';
+<<<<<<< HEAD
 import { useLoader, useTranslation } from '@hooks';
+=======
+import { useLoader } from '@hooks';
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 import { fetchProductDetailsByBarcode } from '@api/details/detailApi';
 import { showToastMessage } from '@components/Toast';
 import { OverlayLoader } from '@components/Loader';
@@ -19,7 +23,10 @@ const OptionsScreen = ({ navigation }) => {
   const [loading, startLoading, stopLoading] = useLoader(false);
   const [isLoading, setIsLoading] = useState(false);
   const currentUser = useAuthStore(state => state.user);
+<<<<<<< HEAD
   const { t } = useTranslation();
+=======
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
   const handleScan = async (code) => {
     startLoading();
@@ -29,7 +36,11 @@ const OptionsScreen = ({ navigation }) => {
         const details = productDetails[0];
         navigation.navigate('ProductDetail', { detail: details });
       } else {
+<<<<<<< HEAD
         showToastMessage(t.noProductsForBarcode);
+=======
+        showToastMessage('No Products found for this Barcode');
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       }
     } catch (error) {
       showToastMessage(`Error fetching inventory details ${error.message}`);
@@ -39,6 +50,7 @@ const OptionsScreen = ({ navigation }) => {
   };
 
   const options = [
+<<<<<<< HEAD
     { title: t.searchProducts, image: require('@assets/images/Home/options/search_product.png'), onPress: () => navigation.navigate('Products') },
     { title: t.scanBarcode, image: require('@assets/images/Home/options/scan_barcode.png'), onPress: () => navigation.navigate("Scanner", { onScan: handleScan }) },
     { title: t.productEnquiry, image: require('@assets/images/Home/options/product_enquiry.png'), onPress: () => navigation.navigate('PriceEnquiryScreen') },
@@ -54,6 +66,23 @@ const OptionsScreen = ({ navigation }) => {
     { title: t.inventoryManagement, image: require('@assets/images/Home/options/inventory_management_1.png'), onPress: () => navigation.navigate('InventoryScreen') },
     { title: t.boxInspection, image: require('@assets/images/Home/options/box_inspection.png'), onPress: () => setIsConfirmationModalVisible(true) },
     { title: t.deviceRegistry, image: require('@assets/images/Home/options/scan_barcode.png'), onPress: () => navigation.navigate('DeviceRegistry') },
+=======
+    { title: 'Search Products', image: require('@assets/images/Home/options/search_product.png'), onPress: () => navigation.navigate('Products') },
+    { title: 'Scan Barcode', image: require('@assets/images/Home/options/scan_barcode.png'), onPress: () => navigation.navigate("Scanner", { onScan: handleScan }) },
+    { title: 'Product Enquiry', image: require('@assets/images/Home/options/product_enquiry.png'), onPress: () => navigation.navigate('PriceEnquiryScreen') },
+    { title: 'Transaction Auditing', image: require('@assets/images/Home/options/transaction_auditing.png'), onPress: () => navigation.navigate('AuditScreen') },
+    { title: 'CRM', image: require('@assets/images/Home/options/crm.png'), onPress: () => navigation.navigate('CRM') },
+    { title: 'Purchases', image: require('@assets/images/Home/options/product_purchase_requisition.png'), onPress: () => navigation.navigate('PurchasesScreen') },
+    { title: 'Vehicle Tracking', image: require('@assets/images/Home/options/customer_visit.png'), onPress: () => navigation.navigate('VehicleTrackingScreen') },
+    { title: 'Task Manager', image: require('@assets/images/Home/options/tasK_manager_1.png'), onPress: () => navigation.navigate('TaskManagerScreen') },
+    { title: 'Visits Plan', image: require('@assets/images/Home/options/visits_plan.png'), onPress: () => navigation.navigate('VisitsPlanScreen') },
+    { title: 'Customer Visits', image: require('@assets/images/Home/options/customer_visit.png'), onPress: () => navigation.navigate('VisitScreen') },
+    { title: 'Market Study', image: require('@assets/images/Home/options/market_study_1.png'), onPress: () => navigation.navigate('MarketStudyScreen') },
+    { title: 'Attendance', image: require('@assets/images/Home/options/attendance.png'), onPress: () => navigation.navigate('AttendanceScreen') },
+    { title: 'Inventory Management', image: require('@assets/images/Home/options/inventory_management_1.png'), onPress: () => navigation.navigate('InventoryScreen') },
+    { title: 'Box Inspection', image: require('@assets/images/Home/options/box_inspection.png'), onPress: () => setIsConfirmationModalVisible(true) },
+    { title: 'Device Registry', image: require('@assets/images/Home/options/scan_barcode.png'), onPress: () => navigation.navigate('DeviceRegistry') },
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   ];
 
   const renderItem = ({ item }) => {
@@ -85,7 +114,11 @@ const OptionsScreen = ({ navigation }) => {
   return (
     <SafeAreaView backgroundColor={COLORS.white}>
       <NavigationHeader
+<<<<<<< HEAD
         title={t.options}
+=======
+        title="Options"
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         color={COLORS.black}
         backgroundColor={COLORS.white}
         onBackPress={() => navigation.goBack()}
@@ -109,7 +142,11 @@ const OptionsScreen = ({ navigation }) => {
           handleBoxInspectionStart();
           setIsConfirmationModalVisible(false);
         }}
+<<<<<<< HEAD
         headerMessage={t.boxInspectionConfirm}
+=======
+        headerMessage='Are you sure that you want to start Box Inspection?'
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       />
     </SafeAreaView>
   );

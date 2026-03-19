@@ -91,6 +91,7 @@ async function callKw(model, method, args = [[]], kwargs = {}) {
   return response.data?.result;
 }
 
+<<<<<<< HEAD
 // ── Fetch POS Config (printer settings from Odoo) ───────────
 
 let _posConfigCache = null;
@@ -123,6 +124,8 @@ export function clearPosConfigCache() {
   _posConfigCache = null;
 }
 
+=======
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 // ── Print KOT ────────────────────────────────────────────────
 
 /**
@@ -136,18 +139,24 @@ export function clearPosConfigCache() {
  * @param {string}  [kotData.order_type]  - "Dine In" | "Takeout" | "Delivery"
  * @param {number}  [kotData.guest_count] - Number of guests
  * @param {string}  [kotData.print_type]  - "NEW" | "ADDON" | "FULL"
+<<<<<<< HEAD
  * @param {number}  [kotData.config_id]   - POS config ID
+=======
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
  * @param {Array<{name:string, qty:number, note?:string}>} kotData.items
  * @returns {Promise<{success: boolean, message?: string, error?: string}>}
  */
 export async function printKot(kotData) {
   try {
+<<<<<<< HEAD
     const configId = kotData.config_id || null;
     const posConfig = await getPosConfig(configId);
 
     const printerIp = posConfig?.kot_printer_ip || '192.168.0.100';
     const printerPort = posConfig?.kot_printer_port || 9100;
 
+=======
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
     const data = {
       table_name: kotData.table_name || '',
       order_name: kotData.order_name || '',
@@ -158,9 +167,12 @@ export async function printKot(kotData) {
       order_type: kotData.order_type || 'Dine In',
       guest_count: kotData.guest_count || 0,
       print_type: kotData.print_type || 'NEW',
+<<<<<<< HEAD
       config_id: posConfig?.id || configId || false,
       printer_ip: printerIp,
       printer_port: printerPort,
+=======
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       items: (kotData.items || []).map((it) => ({
         name: it.name || 'Item',
         qty: Number(it.qty || 1),
@@ -171,7 +183,10 @@ export async function printKot(kotData) {
     console.log('[KOT] printKot data:', JSON.stringify(data, null, 2));
 
     const result = await callKw('pos.kot.print', 'print_kot', [data]);
+<<<<<<< HEAD
     console.log('[KOT] printKot result:', JSON.stringify(result));
+=======
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
     return result || { success: true };
   } catch (error) {
     console.error('[KOT] printKot error:', error.message);
@@ -272,11 +287,18 @@ export async function addLineToOrder({ orderId, productId, qty, price_unit }) {
 
 export default {
   printKot,
+<<<<<<< HEAD
   getPosConfig,
   clearPosConfigCache,
+=======
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   getTables,
   getProducts,
   fetchOrder,
   fetchOrderLines,
   addLineToOrder,
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f

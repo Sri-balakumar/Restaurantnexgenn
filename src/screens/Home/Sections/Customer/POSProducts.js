@@ -18,7 +18,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AntDesign } from '@expo/vector-icons';
 import { Button } from '@components/common/Button';
 import useKitchenTickets from '@stores/kitchen/ticketsStore';
+<<<<<<< HEAD
 import { useTranslation } from '@hooks';
+=======
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
 
 // Static styles — created once, never re-allocated
 const localStyles = RNStyleSheet.create({
@@ -325,7 +328,10 @@ const localStyles = RNStyleSheet.create({
 });
 
 const POSProducts = ({ navigation, route }) => {
+<<<<<<< HEAD
   const { t } = useTranslation();
+=======
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
   const {
     openingAmount, sessionId, registerId, registerName, userId, userName
   } = route?.params || {};
@@ -813,7 +819,11 @@ const POSProducts = ({ navigation, route }) => {
         <View style={localStyles.rowDivider} />
         <View style={{ flex: 1 }}>
           <Text style={localStyles.orderLineName}>{item.name || item.full_product_name || item.product_name || (Array.isArray(item.product_id) ? item.product_id[1] : null) || `Product #${item.remoteId || item.id}`}</Text>
+<<<<<<< HEAD
           <Text style={localStyles.orderLinePrice}>{formatCurrency(unit).replace(/^\w+\s/, '')} {t.each}</Text>
+=======
+          <Text style={localStyles.orderLinePrice}>{formatCurrency(unit).replace(/^\w+\s/, '')} each</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         </View>
         <View style={localStyles.rowDivider} />
         <View style={localStyles.orderLineControls}>
@@ -845,11 +855,19 @@ const POSProducts = ({ navigation, route }) => {
         {/* Header with order name and user badge */}
         <View style={localStyles.registerHeader}>
           <View style={{ flex: 1 }}>
+<<<<<<< HEAD
             <Text style={localStyles.registerTitle}>{route?.params?.registerName || t.register}</Text>
             {orderInfo?.name && orderInfo.name !== '/' ? <Text style={localStyles.registerOrderName}>{orderInfo.name}</Text> : (orderInfo?.id ? <Text style={localStyles.registerOrderName}>{t.order} #{orderInfo.id}</Text> : null)}
           </View>
           <View style={localStyles.registerUserBadge}>
             <Text style={localStyles.registerUserText}>{route?.params?.userName || t.staff}</Text>
+=======
+            <Text style={localStyles.registerTitle}>{route?.params?.registerName || 'Register'}</Text>
+            {orderInfo?.name && orderInfo.name !== '/' ? <Text style={localStyles.registerOrderName}>{orderInfo.name}</Text> : (orderInfo?.id ? <Text style={localStyles.registerOrderName}>Order #{orderInfo.id}</Text> : null)}
+          </View>
+          <View style={localStyles.registerUserBadge}>
+            <Text style={localStyles.registerUserText}>{route?.params?.userName || 'Staff'}</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           </View>
         </View>
 
@@ -857,11 +875,19 @@ const POSProducts = ({ navigation, route }) => {
         <View style={localStyles.columnHeader}>
           <Text style={[localStyles.colHeaderText, { width: 24, textAlign: 'center' }]}>#</Text>
           <View style={localStyles.colDivider} />
+<<<<<<< HEAD
           <Text style={[localStyles.colHeaderText, { flex: 1 }]}>{t.items}</Text>
           <View style={localStyles.colDivider} />
           <Text style={[localStyles.colHeaderText, { width: 130, textAlign: 'center' }]}>{t.qty}</Text>
           <View style={localStyles.colDivider} />
           <Text style={[localStyles.colHeaderText, { width: 80, textAlign: 'right' }]}>{t.amount}</Text>
+=======
+          <Text style={[localStyles.colHeaderText, { flex: 1 }]}>Items</Text>
+          <View style={localStyles.colDivider} />
+          <Text style={[localStyles.colHeaderText, { width: 130, textAlign: 'center' }]}>Qty</Text>
+          <View style={localStyles.colDivider} />
+          <Text style={[localStyles.colHeaderText, { width: 80, textAlign: 'right' }]}>Amount</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         </View>
 
         {/* Order lines */}
@@ -873,8 +899,13 @@ const POSProducts = ({ navigation, route }) => {
             ListEmptyComponent={
               <View style={{ paddingVertical: 40, alignItems: 'center' }}>
                 <Text style={{ fontSize: 36, marginBottom: 8 }}>🛒</Text>
+<<<<<<< HEAD
                 <Text style={{ color: '#8896ab', fontWeight: '600', fontSize: 14 }}>{t.noItemsYet}</Text>
                 <Text style={{ color: '#b0bec5', fontSize: 12, marginTop: 4 }}>{t.tapAddProducts}</Text>
+=======
+                <Text style={{ color: '#8896ab', fontWeight: '600', fontSize: 14 }}>No items yet</Text>
+                <Text style={{ color: '#b0bec5', fontSize: 12, marginTop: 4 }}>Tap "Add Products" to get started</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
               </View>
             }
             contentContainerStyle={{ paddingBottom: 6 }}
@@ -884,7 +915,11 @@ const POSProducts = ({ navigation, route }) => {
         {/* Total */}
         <View style={localStyles.totalSection}>
           <View style={localStyles.totalRow}>
+<<<<<<< HEAD
             <Text style={localStyles.totalLabel}>{t.total}</Text>
+=======
+            <Text style={localStyles.totalLabel}>Total</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             <Text style={localStyles.totalValue}>{formatCurrency(total)}</Text>
           </View>
         </View>
@@ -904,7 +939,11 @@ const POSProducts = ({ navigation, route }) => {
               order_type: route?.params?.order_type,
             });
           }} style={[localStyles.kitchenBillBtn, cartItems.length === 0 && { opacity: 0.4 }]}>
+<<<<<<< HEAD
             <Text style={localStyles.kitchenBillBtnText}>{t.kitchenBill}</Text>
+=======
+            <Text style={localStyles.kitchenBillBtnText}>Kitchen Bill</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
           </TouchableOpacity>
         </View>
       </View>
@@ -931,13 +970,21 @@ const POSProducts = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
+<<<<<<< HEAD
       <NavigationHeader title={t.register} onBackPress={handleMainBack} logo={false} />
+=======
+      <NavigationHeader title="Register" onBackPress={handleMainBack} logo={false} />
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
       <OverlayLoader visible={backLoading} />
       <View style={{ flex: 1, paddingHorizontal: 14, backgroundColor: '#f0f2f8' }}>
         {renderRegisterPanel()}
 
         <View style={localStyles.addProductsBtn}>
+<<<<<<< HEAD
           <Button title={t.addProducts} onPress={() => setShowProducts(true)} />
+=======
+          <Button title="+ Add Products" onPress={() => setShowProducts(true)} />
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
         </View>
 
         <Modal visible={showProducts} animationType="slide" onRequestClose={handleCloseProducts}>
@@ -947,7 +994,11 @@ const POSProducts = ({ navigation, route }) => {
               <TouchableOpacity onPress={handleCloseProducts} style={localStyles.productsBackBtn} activeOpacity={0.7}>
                 <AntDesign name="left" size={22} color="#fff" />
               </TouchableOpacity>
+<<<<<<< HEAD
               <Text style={localStyles.productsHeaderTitle}>{t.products}</Text>
+=======
+              <Text style={localStyles.productsHeaderTitle}>Products</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
               <View style={{ width: 40 }} />
             </View>
 
@@ -956,7 +1007,11 @@ const POSProducts = ({ navigation, route }) => {
               <View style={localStyles.productsSearchBar}>
                 <AntDesign name="search1" size={18} color="#888" style={{ marginRight: 10 }} />
                 <TextInput
+<<<<<<< HEAD
                   placeholder={t.searchProducts}
+=======
+                  placeholder="Search Products"
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                   placeholderTextColor="#9ca3af"
                   onChangeText={handleSearchChange}
                   value={searchText}
@@ -970,7 +1025,11 @@ const POSProducts = ({ navigation, route }) => {
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={localStyles.catScroll} keyboardShouldPersistTaps="handled">
                 <TouchableOpacity onPress={() => setSelectedPosCategoryId(null)} style={{ marginRight: 8 }}>
                   <View style={[localStyles.catPill, selectedPosCategoryId === null ? { backgroundColor: '#2E294E', borderColor: '#2E294E' } : { backgroundColor: '#f3f4f6' }]}>
+<<<<<<< HEAD
                     <Text style={[localStyles.catText, { color: selectedPosCategoryId === null ? '#fff' : '#374151' }]}>{t.showAll}</Text>
+=======
+                    <Text style={[localStyles.catText, { color: selectedPosCategoryId === null ? '#fff' : '#374151' }]}>Show All</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                   </View>
                 </TouchableOpacity>
                 {posCategories.length > 0 ? (
@@ -987,7 +1046,11 @@ const POSProducts = ({ navigation, route }) => {
                     );
                   })
                 ) : (
+<<<<<<< HEAD
                   <Text style={{ color: '#999', fontWeight: '600', fontSize: 13 }}>{t.loadingCategories}</Text>
+=======
+                  <Text style={{ color: '#999', fontWeight: '600', fontSize: 13 }}>Loading categories...</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                 )}
               </ScrollView>
             </View>
@@ -1001,10 +1064,17 @@ const POSProducts = ({ navigation, route }) => {
             <Modal visible={quickAddVisible} transparent animationType="none" onRequestClose={() => setQuickAddVisible(false)}>
               <Pressable style={localStyles.modalBackdrop} onPress={() => setQuickAddVisible(false)}>
                 <Pressable style={localStyles.modalCard} onPress={(e) => e.stopPropagation()}>
+<<<<<<< HEAD
                   <Text style={localStyles.modalTitle}>{t.addItem}</Text>
                   <Text style={localStyles.modalSubtitle}>{quickProduct?.product_name || quickProduct?.name || 'Product'}</Text>
                   <View style={localStyles.qtyRow}>
                     <Text style={localStyles.qtyLabel}>{t.quantity}</Text>
+=======
+                  <Text style={localStyles.modalTitle}>Add Item</Text>
+                  <Text style={localStyles.modalSubtitle}>{quickProduct?.product_name || quickProduct?.name || 'Product'}</Text>
+                  <View style={localStyles.qtyRow}>
+                    <Text style={localStyles.qtyLabel}>Quantity</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                     <View style={localStyles.qtyButtons}>
                       <TouchableOpacity onPress={() => setQuickQty(prev => Math.max(1, prev - 1))} style={localStyles.qtyBtn} activeOpacity={0.6}>
                         <Text style={localStyles.qtyText}>-</Text>
@@ -1018,10 +1088,17 @@ const POSProducts = ({ navigation, route }) => {
                   <View style={localStyles.divider} />
                   <View style={localStyles.actionRow}>
                     <TouchableOpacity onPress={() => setQuickAddVisible(false)} style={localStyles.cancelBtn}>
+<<<<<<< HEAD
                       <Text style={localStyles.cancelText}>{t.cancel}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={confirmQuickAdd} style={[localStyles.addBtn, { backgroundColor: COLORS.primary || '#111827' }]}>
                       <Text style={localStyles.addBtnText}>{t.addToCart}</Text>
+=======
+                      <Text style={localStyles.cancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={confirmQuickAdd} style={[localStyles.addBtn, { backgroundColor: COLORS.primary || '#111827' }]}>
+                      <Text style={localStyles.addBtnText}>+ Add</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                     </TouchableOpacity>
                   </View>
                 </Pressable>
@@ -1032,7 +1109,11 @@ const POSProducts = ({ navigation, route }) => {
             {confirmVisible && (
               <View pointerEvents="none" style={localStyles.confirmOverlay}>
                 <View style={localStyles.confirmChip}>
+<<<<<<< HEAD
                   <Text style={localStyles.confirmTitle}>{t.addedToCart}</Text>
+=======
+                  <Text style={localStyles.confirmTitle}>Added to Cart</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
                   <Text style={localStyles.confirmSub}>{confirmName} × {confirmQty}</Text>
                 </View>
               </View>
@@ -1045,7 +1126,11 @@ const POSProducts = ({ navigation, route }) => {
               activeOpacity={0.85}
             >
               <AntDesign name="shoppingcart" size={18} color="#fff" style={{ marginRight: 8 }} />
+<<<<<<< HEAD
               <Text style={localStyles.floatingRegisterText}>{t.goToRegister}</Text>
+=======
+              <Text style={localStyles.floatingRegisterText}>Go to Register</Text>
+>>>>>>> 2db01c18213b27cda51767e75dd63968b6634b1f
             </TouchableOpacity>
           </SafeAreaView>
         </Modal>
