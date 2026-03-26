@@ -178,12 +178,19 @@ const HomeScreen = ({ navigation }) => {
         />
 
         <OverlayLoader visible={detailLoading} />
+        <Text style={styles.poweredBy}>Powered by 369ai  |  v2.0.1</Text>
       </RoundedContainer>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  poweredBy: {
+    textAlign: 'center',
+    color: '#999',
+    fontSize: 11,
+    paddingVertical: 8,
+  },
   headerRow: {
     alignItems: 'center',
     justifyContent: 'center',

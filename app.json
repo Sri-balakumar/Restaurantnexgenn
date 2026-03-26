@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "NEXX GENN Restaurant",
-    "slug": "Ahaa-restaurant",
-    "version": "2.0.0",
+    "name": "NEX GENN Restaurant",
+    "slug": "nexgenn-restaurant",
+    "version": "2.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -84,9 +84,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "04b1ba21-3bf3-44c8-97d2-48128507e6ff"
+        "projectId": "49e9b1d6-9177-4905-88a2-cab289eaa007"
       }
     },
-    "owner": "gurucharan_vijay"
+    "owner": "sribalakumar"
   }
 }

@@ -443,7 +443,8 @@ const POSProducts = ({ navigation, route }) => {
   const [quickAddVisible, setQuickAddVisible] = useState(false);
   const [quickProduct, setQuickProduct] = useState(null);
   const [quickQty, setQuickQty] = useState(1);
-  const [orderInfo, setOrderInfo] = useState(null);
+  const [orderInfo, setOrderInfo] = useState(route?.params?.orderState ? { state: route.params.orderState } : null);
+  const isOrderClosed = ['paid', 'done', 'cancel', 'invoiced', 'posted'].includes(String(orderInfo?.state || ''));
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [confirmName, setConfirmName] = useState('');
   const [confirmQty, setConfirmQty] = useState(1);
@@ -1021,6 +1022,19 @@ const POSProducts = ({ navigation, route }) => {
     }, [route?.params?.orderId, route?.params?.cartOwner, setCurrentCustomer, refreshServerOrder])
   );
 
+  // Eagerly fetch order state on mount (so buttons hide immediately for paid orders)
+  useEffect(() => {
+    const oid = orderIdRef.current || route?.params?.orderId;
+    if (oid) {
+      (async () => {
+        try {
+          const resp = await fetchPosOrderById(oid);
+          if (resp?.result) setOrderInfo(resp.result);
+        } catch (_) {}
+      })();
+    }
+  }, []);
+
   // Load presets + order lines on mount
   useEffect(() => {
     (async () => {
@@ -1335,7 +1349,7 @@ const POSProducts = ({ navigation, route }) => {
     return (
       <TouchableOpacity
         activeOpacity={0.7}
-        onPress={() => { setDiscountTargetItem(item); setNoteText(item.note || ''); setDiscountModalVisible(true); }}
+        onPress={() => { if (isOrderClosed) return; setDiscountTargetItem(item); setNoteText(item.note || ''); setDiscountModalVisible(true); }}
         style={localStyles.orderLineRow}
       >
         <Text style={[localStyles.orderLineSno, { textAlign: 'center' }]}>{index + 1}.</Text>
@@ -1360,13 +1374,19 @@ const POSProducts = ({ navigation, route }) => {
         </View>
         <View style={localStyles.rowDivider} />
         <View style={localStyles.orderLineControls}>
-          <TouchableOpacity onPress={handleDecrease} style={localStyles.orderLineBtn}>
-            <Text style={localStyles.orderLineBtnText}>-</Text>
-          </TouchableOpacity>
-          <Text style={localStyles.orderLineQty}>{qty}</Text>
-          <TouchableOpacity onPress={handleIncrease} style={localStyles.orderLineBtn}>
-            <Text style={localStyles.orderLineBtnText}>+</Text>
-          </TouchableOpacity>
+          {!isOrderClosed ? (
+            <>
+              <TouchableOpacity onPress={handleDecrease} style={localStyles.orderLineBtn}>
+                <Text style={localStyles.orderLineBtnText}>-</Text>
+              </TouchableOpacity>
+              <Text style={localStyles.orderLineQty}>{qty}</Text>
+              <TouchableOpacity onPress={handleIncrease} style={localStyles.orderLineBtn}>
+                <Text style={localStyles.orderLineBtnText}>+</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <Text style={localStyles.orderLineQty}>{qty}</Text>
+          )}
         </View>
         <View style={localStyles.rowDivider} />
         <Text style={localStyles.orderLineTotal}>{formatCurrency(subtotal)}</Text>
@@ -1457,7 +1477,8 @@ const POSProducts = ({ navigation, route }) => {
           </View>
         </View>
 
-        {/* Bottom action */}
+        {/* Bottom action — hidden for paid/closed orders */}
+        {!isOrderClosed && (
         <View style={localStyles.bottomActions}>
           <TouchableOpacity disabled={cartItems.length === 0} onPress={async () => {
             // Wait for all pending add-line API calls to complete before navigating
@@ -1493,6 +1514,7 @@ const POSProducts = ({ navigation, route }) => {
             </Text>
           </TouchableOpacity>
         </View>
+        )}
       </View>
     );
   };
@@ -1522,9 +1544,11 @@ const POSProducts = ({ navigation, route }) => {
       <View style={{ flex: 1, paddingHorizontal: 14, backgroundColor: '#f0f2f8' }}>
         {renderRegisterPanel()}
 
-        <View style={localStyles.addProductsBtn}>
-          <Button title={t.addProducts} onPress={() => setShowProducts(true)} />
-        </View>
+        {!isOrderClosed && (
+          <View style={localStyles.addProductsBtn}>
+            <Button title={t.addProducts} onPress={() => setShowProducts(true)} />
+          </View>
+        )}
 
         <Modal visible={showProducts} animationType="slide" onRequestClose={handleCloseProducts}>
           <SafeAreaView style={{ flex: 1, backgroundColor: '#f0f2f8' }}>

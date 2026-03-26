@@ -1,13 +1,12 @@
 import React from 'react';
-import { View, TextInput, StyleSheet } from 'react-native';
-import { AntDesign } from '@expo/vector-icons';
+import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { COLORS, FONT_FAMILY } from '@constants/theme';
 
 const SearchContainer = ({ placeholder, onChangeText }) => {
     return (
         <View style={styles.searchContainer}>
             <View style={styles.searchInput}>
-                <AntDesign name="search1" size={20} color="#888" style={styles.searchIcon} />
+                <Text style={styles.searchIcon}>🔍</Text>
                 <TextInput
                     style={styles.input}
                     placeholder={placeholder}
@@ -34,7 +33,8 @@ const styles = StyleSheet.create({
     },
     searchIcon: {
         marginLeft: 15,
-        marginRight: 10
+        marginRight: 10,
+        fontSize: 18,
     },
     input: {
         flex: 1,

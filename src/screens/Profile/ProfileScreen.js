@@ -100,7 +100,7 @@ const ProfileScreen = () => {
           })}
         </View>
 
-        <Text style={styles.version}>{t.version} {appVersion}</Text>
+        <Text style={styles.version}>Powered by 369ai  |  v{appVersion}</Text>
       </ScrollView>
     </SafeAreaView>
   );

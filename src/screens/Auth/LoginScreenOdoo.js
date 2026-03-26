@@ -314,6 +314,7 @@ const LoginScreenOdoo = () => {
               }
             </TouchableOpacity>
 
+            <Text style={styles.poweredBy}>Powered by 369ai  |  v2.0.1</Text>
           </ScrollView>
         </View>
       </SafeAreaView>
@@ -322,6 +323,14 @@ const LoginScreenOdoo = () => {
 };
 
 const styles = StyleSheet.create({
+  poweredBy: {
+    textAlign: 'center',
+    color: '#999',
+    fontSize: 12,
+    marginTop: 20,
+    paddingBottom: 12,
+    fontFamily: FONT_FAMILY.urbanistRegular,
+  },
   header: {
     alignItems: 'center',
     justifyContent: 'center',

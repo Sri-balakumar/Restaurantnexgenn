@@ -55,7 +55,7 @@ const TakeawayOrdersScreen = ({ navigation, route }) => {
         const linesResp = await fetchOrderLinesByIds(lineIds);
         orderLines = linesResp && linesResp.result ? linesResp.result : [];
       }
-      navigation.navigate('POSProducts', { ...route?.params, orderId: order.id, orderLines, cartOwner: `order_${order.id}`, order_type: 'TAKEAWAY' });
+      navigation.navigate('POSProducts', { ...route?.params, orderId: order.id, orderLines, cartOwner: `order_${order.id}`, order_type: 'TAKEAWAY', orderState: order.state });
     } catch (e) {
       Alert.alert(t.error, t.failedToOpenOrder);
     }
