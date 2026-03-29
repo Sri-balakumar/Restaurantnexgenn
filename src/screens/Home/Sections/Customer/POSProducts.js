@@ -2,7 +2,7 @@ import React, { useEffect, useCallback, useState, useMemo, useRef } from 'react'
 import { View, Text, TextInput, FlatList, TouchableOpacity, ScrollView, Modal, Pressable, StyleSheet as RNStyleSheet, InteractionManager, Platform, Alert, ActivityIndicator } from 'react-native';
 import { NavigationHeader } from '@components/Header';
 import { ProductsList } from '@components/Product';
-import { fetchPosPresets, addLineToOrderOdoo, updateOrderLineOdoo, removeOrderLineOdoo, fetchPosOrderById, fetchOrderLinesByIds, fetchPosCategoriesOdoo, fetchProductCategoriesOdoo, fetchCategoriesOdoo, preloadAllProducts, createDraftPosOrderOdoo, fetchPosPaymentMethodsOdoo, createPosOrderOdoo, createPosPaymentOdoo, fetchPOSSessions, fetchPricelistsOdoo, fetchPricelistItemsOdoo } from '@api/services/generalApi';
+import { fetchPosPresets, addLineToOrderOdoo, updateOrderLineOdoo, removeOrderLineOdoo, fetchPosOrderById, fetchOrderLinesByIds, fetchPosCategoriesOdoo, fetchProductCategoriesOdoo, fetchCategoriesOdoo, preloadAllProducts, createDraftPosOrderOdoo, fetchPosPaymentMethodsOdoo, createPosOrderOdoo, createPosPaymentOdoo, fetchPOSSessions, fetchPricelistsOdoo, fetchPricelistItemsOdoo, updatePosOrderFields } from '@api/services/generalApi';
 import { useFocusEffect } from '@react-navigation/native';
 import { FlashList } from '@shopify/flash-list';
 import { formatData } from '@utils/formatters';
@@ -482,6 +482,108 @@ const POSProducts = ({ navigation, route }) => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => setDebouncedSearch(text), 300);
   }, []);
+
+  const _kotGetNext7Days = () => {
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      days.push(d);
+    }
+    return days;
+  };
+
+  const _kotFormatDate = (d) => {
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${mm}/${dd}/${yyyy}`;
+  };
+
+  const KOT_TIME_SLOTS = (() => {
+    const slots = [];
+    for (let h = 7; h <= 22; h++) {
+      for (let m = 0; m < 60; m += 20) {
+        if (h === 22 && m > 0) break;
+        slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+      }
+    }
+    return slots;
+  })();
+
+  const _kotTimeGroup = (slot) => {
+    const h = parseInt(slot.split(':')[0], 10);
+    if (h < 12) return 'Morning';
+    if (h < 17) return 'Afternoon';
+    return 'Evening';
+  };
+
+  const kotTimeGroups = ['Morning', 'Afternoon', 'Evening'].map(g => ({
+    label: g,
+    slots: KOT_TIME_SLOTS.filter(s => _kotTimeGroup(s) === g),
+  })).filter(g => g.slots.length > 0);
+
+  const _kotLoadRecentNames = async () => {
+    try {
+      const raw = await AsyncStorage.getItem('kot_recent_names');
+      if (raw) setKotRecentNames(JSON.parse(raw));
+    } catch (_) {}
+  };
+
+  const _kotSaveName = async (name) => {
+    try {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      const updated = [trimmed, ...kotRecentNames.filter(n => n !== trimmed)].slice(0, 6);
+      setKotRecentNames(updated);
+      await AsyncStorage.setItem('kot_recent_names', JSON.stringify(updated));
+    } catch (_) {}
+  };
+
+  const openKotWizard = async (baseParams) => {
+    kotPendingParamsRef.current = baseParams;
+    setKotCustomerName('');
+    setKotSelectedDate(_kotGetNext7Days()[0]);
+    setKotSelectedTime(null);
+    await _kotLoadRecentNames();
+    setKotWizardStep('name');
+  };
+
+  const onKotNameNext = () => setKotWizardStep('time');
+
+  const onKotTimeConfirm = async () => {
+    const name = kotCustomerName.trim();
+    await _kotSaveName(name);
+    setKotWizardStep(null);
+    const p = kotPendingParamsRef.current || {};
+
+    // Save customer name & time slot to Odoo immediately (before navigation)
+    const oid = p.orderId || orderIdRef.current;
+    if (oid) {
+      const odooFields = {};
+      if (name) odooFields.floating_order_name = name;
+      if (kotSelectedDate) {
+        const d = kotSelectedDate;
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const dateStr = `${d.getFullYear()}-${mm}-${dd}`;
+        odooFields.shipping_date = dateStr;
+        // preset_time is a datetime field — combine date + time as "YYYY-MM-DD HH:MM:SS"
+        odooFields.preset_time = `${dateStr} ${kotSelectedTime || '00:00'}:00`;
+      }
+      if (Object.keys(odooFields).length > 0) {
+        console.log('[KOT Wizard] saving to Odoo orderId:', oid, 'fields:', JSON.stringify(odooFields));
+        updatePosOrderFields(oid, odooFields).catch((e) => console.warn('[KOT Wizard] save failed:', e));
+      }
+    }
+
+    navigation.navigate('KitchenBillPreview', {
+      ...p,
+      customerName: name || undefined,
+      scheduledDate: kotSelectedDate ? _kotFormatDate(kotSelectedDate) : undefined,
+      scheduledTime: kotSelectedTime || undefined,
+    });
+  };
 
   const setSnapshot = useKitchenTickets((s) => s.setSnapshot);
 

@@ -1944,6 +1944,64 @@ export const createDraftPosOrderOdoo = async ({ sessionId, userId, tableId, part
   }
 };
 
+// Update arbitrary fields on a pos.order record (e.g. customer_name, scheduled_date, scheduled_time)
+export const updatePosOrderFields = async (orderId, fields = {}) => {
+  try {
+    if (!orderId || !fields || Object.keys(fields).length === 0) return { result: false };
+    const { baseUrl, headers } = await _buildOdooHeaders();
+
+    // Ensure we have the fields cache so we only write fields that exist on the model
+    if (!global.__pos_order_fields_cache) {
+      try {
+        const fieldsResp = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            jsonrpc: '2.0', method: 'call',
+            params: { model: 'pos.order', method: 'fields_get', args: [], kwargs: {} },
+          }),
+        });
+        const fieldsData = await fieldsResp.json();
+        global.__pos_order_fields_cache = fieldsData && fieldsData.result ? Object.keys(fieldsData.result) : [];
+      } catch (_) {}
+    }
+
+    const validFields = Array.isArray(global.__pos_order_fields_cache) ? global.__pos_order_fields_cache : [];
+    const vals = {};
+    const skipped = [];
+    for (const [key, value] of Object.entries(fields)) {
+      if (validFields.length === 0 || validFields.includes(key)) {
+        vals[key] = value;
+      } else {
+        skipped.push(key);
+      }
+    }
+    console.log('[updatePosOrderFields] orderId:', orderId, 'writing:', JSON.stringify(vals), 'skipped:', skipped);
+    // Log datetime-related fields available on model for debugging
+    if (validFields.length > 0) {
+      const dateFields = validFields.filter(f => f.includes('date') || f.includes('time') || f.includes('schedule') || f.includes('pickup') || f.includes('preset') || f.includes('planned'));
+      console.log('[updatePosOrderFields] date/time fields on pos.order:', dateFields);
+    }
+    if (Object.keys(vals).length === 0) return { result: false };
+
+    const response = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0', method: 'call',
+        params: { model: 'pos.order', method: 'write', args: [[orderId], vals], kwargs: {} },
+        id: new Date().getTime(),
+      }),
+    });
+    const data = await response.json();
+    console.log('[updatePosOrderFields] Odoo response:', JSON.stringify(data));
+    if (data.error) return { error: data.error };
+    return { result: data.result };
+  } catch (error) {
+    console.warn('[updatePosOrderFields] exception:', error);
+    return { error };
+  }
+};
 // Add a line to an existing pos.order using the correct 'lines' field
 export const addLineToOrderOdoo = async ({ orderId, productId, qty = 1, price_unit = 0, name = '', taxes = [] } = {}) => {
   try {

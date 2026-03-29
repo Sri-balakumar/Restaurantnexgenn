@@ -94,6 +94,26 @@ const KitchenBillPreview = ({ navigation, route }) => {
     })();
   }, []);
 
+  // ── Save customer name & time slot to Odoo (fallback — primary save is in POSProducts.onKotTimeConfirm)
+  useEffect(() => {
+    if (!orderId) return;
+    const fields = {};
+    if (customerName) {
+      fields.floating_order_name = customerName;
+    }
+    if (scheduledDate) {
+      const parts = scheduledDate.split('/');
+      if (parts.length === 3) {
+        const dateStr = `${parts[2]}-${parts[0]}-${parts[1]}`;
+        fields.shipping_date = dateStr;
+        fields.preset_time = `${dateStr} ${scheduledTime || '00:00'}:00`;
+      }
+    }
+    if (Object.keys(fields).length > 0) {
+      updatePosOrderFields(orderId, fields).catch(() => {});
+    }
+  }, [orderId, customerName, scheduledDate, scheduledTime]);
+
   // ── Save initial snapshot for takeaway orders ────────────────
   const snapshotKey = orderId || orderName || null;
 
