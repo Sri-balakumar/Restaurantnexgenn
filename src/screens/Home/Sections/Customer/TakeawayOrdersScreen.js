@@ -19,7 +19,7 @@ const TakeawayOrdersScreen = ({ navigation, route }) => {
       // Fetch presets and orders in parallel
       const [presetsResp, ordersResp] = await Promise.all([
         fetchPosPresets(),
-        fetchOrders({ sessionId, limit: 500, fields: ['id','name','state','amount_total','table_id','create_date','preset_id','lines'] }),
+        fetchOrders({ sessionId, limit: 500, fields: ['id','name','state','amount_total','table_id','create_date','preset_id','lines','floating_order_name'] }),
       ]);
       const presets = (presetsResp && presetsResp.result) || [];
       const takePresetIds = presets.filter(p => String(p.name || '').toLowerCase().includes('take')).map(p => p.id);
@@ -97,7 +97,9 @@ const TakeawayOrdersScreen = ({ navigation, route }) => {
 
   const renderItem = ({ item, index }) => {
     const status = getStatusColor(item.state);
-    const orderName = item.name && item.name !== '/' ? item.name : `${t.order} #${item.id}`;
+    const customerName = item.floating_order_name || '';
+    const orderRef = item.name && item.name !== '/' ? item.name : `${t.order} #${item.id}`;
+    const lineDetails = item._lineDetails || [];
     return (
       <TouchableOpacity onPress={() => openOrder(item)} style={s.card} activeOpacity={0.7}>
         <View style={s.cardRow}>
@@ -105,7 +107,8 @@ const TakeawayOrdersScreen = ({ navigation, route }) => {
             <Text style={s.cardIcon}>🛍️</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.cardTitle}>{orderName}</Text>
+            {customerName ? <Text style={s.cardTitle}>{customerName}</Text> : null}
+            <Text style={customerName ? s.cardOrderRef : s.cardTitle}>{orderRef}</Text>
             <Text style={s.cardDate}>{formatDate(item.create_date)}</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
@@ -236,6 +239,12 @@ const s = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     color: '#1a1a2e',
+  },
+  cardOrderRef: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#8896ab',
+    marginTop: 1,
   },
   cardDate: {
     fontSize: 12,
