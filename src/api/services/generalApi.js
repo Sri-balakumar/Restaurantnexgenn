@@ -2003,7 +2003,7 @@ export const updatePosOrderFields = async (orderId, fields = {}) => {
   }
 };
 // Add a line to an existing pos.order using the correct 'lines' field
-export const addLineToOrderOdoo = async ({ orderId, productId, qty = 1, price_unit = 0, name = '', taxes = [] } = {}) => {
+export const addLineToOrderOdoo = async ({ orderId, productId, qty = 1, price_unit = 0, name = '', taxes = [], note = '' } = {}) => {
   try {
     if (!orderId) throw new Error('orderId is required');
     if (!productId) throw new Error('productId is required');
@@ -2020,6 +2020,9 @@ export const addLineToOrderOdoo = async ({ orderId, productId, qty = 1, price_un
       price_subtotal: subtotal,
       price_subtotal_incl: subtotal,
     };
+    if (note && String(note).trim()) {
+      lineVals.customer_note = String(note).trim();
+    }
     if (Array.isArray(taxes) && taxes.length > 0) {
       lineVals.tax_ids = taxes.map(t => typeof t === 'number' ? t : (t.id || t[0] || null)).filter(Boolean);
     }

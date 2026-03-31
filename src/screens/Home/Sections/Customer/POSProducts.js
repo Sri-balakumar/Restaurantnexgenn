@@ -443,6 +443,7 @@ const POSProducts = ({ navigation, route }) => {
   const [quickAddVisible, setQuickAddVisible] = useState(false);
   const [quickProduct, setQuickProduct] = useState(null);
   const [quickQty, setQuickQty] = useState(1);
+  const [quickNote, setQuickNote] = useState('');
   const [orderInfo, setOrderInfo] = useState(route?.params?.orderState ? { state: route.params.orderState } : null);
   const isOrderClosed = ['paid', 'done', 'cancel', 'invoiced', 'posted'].includes(String(orderInfo?.state || ''));
   const [confirmVisible, setConfirmVisible] = useState(false);
@@ -918,7 +919,9 @@ const POSProducts = ({ navigation, route }) => {
       const productId = item.remoteId || item.id;
       const match = lines.find(l => {
         const pid = Array.isArray(l.product_id) ? l.product_id[0] : l.product_id;
-        return pid === productId;
+        if (pid !== productId) return false;
+        if (item.note) return (l.customer_note || '') === item.note;
+        return true;
       });
       return match ? match.id : null;
     } catch (_) {
@@ -1159,20 +1162,22 @@ const POSProducts = ({ navigation, route }) => {
         lines.forEach(line => {
           const mapped = mapLineToProduct(line);
           const pid = mapped.remoteId;
-          if (pid && mergedByProduct[pid]) {
-            mergedByProduct[pid].quantity += mapped.quantity;
-            mergedByProduct[pid].qty += mapped.qty;
-            const q = mergedByProduct[pid].qty;
-            const u = mergedByProduct[pid].price_unit;
-            mergedByProduct[pid].price_subtotal = q * u;
-            mergedByProduct[pid].price_subtotal_incl = q * u;
+          // Use composite key when note exists to keep separate lines
+          const mergeKey = mapped.note ? `${pid}_note_${mapped.note}` : String(pid);
+          if (mergedByProduct[mergeKey]) {
+            mergedByProduct[mergeKey].quantity += mapped.quantity;
+            mergedByProduct[mergeKey].qty += mapped.qty;
+            const q = mergedByProduct[mergeKey].qty;
+            const u = mergedByProduct[mergeKey].price_unit;
+            mergedByProduct[mergeKey].price_subtotal = q * u;
+            mergedByProduct[mergeKey].price_subtotal_incl = q * u;
           } else {
             if (pid && savedNames[pid]) {
               mapped.name = savedNames[pid];
               mapped.product_name = savedNames[pid];
             }
-            mergedByProduct[pid || mapped.id] = mapped;
-            mergeOrder.push(pid || mapped.id);
+            mergedByProduct[mergeKey] = mapped;
+            mergeOrder.push(mergeKey);
           }
         });
 
@@ -1350,7 +1355,7 @@ const POSProducts = ({ navigation, route }) => {
     throw new Error('Failed to create order');
   }, [sessionId, userId, route?.params?.tableId, route?.params?.preset_id, route?.params?.order_type, loadCustomerCart, navigation]);
 
-  const handleAdd = useCallback((p, qtyOverride = 1) => {
+  const handleAdd = useCallback((p, qtyOverride = 1, note = '') => {
     const productName = p.product_name || p.name || p.display_name || p.full_product_name || `Product #${p.id}`;
     let productPrice = p.price || p.list_price || 0;
 
@@ -1365,35 +1370,13 @@ const POSProducts = ({ navigation, route }) => {
       }
     }
 
-    // Check if this product already exists in the cart (by remoteId / product ID)
-    const localCart = useProductStore.getState().cartItems[useProductStore.getState().currentCustomerId] || [];
-    const existing = localCart.find(item => {
-      const itemProductId = item.remoteId || (typeof item.id === 'number' ? item.id : null);
-      return itemProductId === p.id;
-    });
+    const hasNote = note && note.trim().length > 0;
 
-    if (existing) {
-      // Product already in cart — increment qty on the existing entry
-      const newQty = Number(existing.quantity ?? existing.qty ?? 1) + qtyOverride;
-      addProduct({ ...existing, quantity: newQty, qty: newQty });
-
-      const orderId = orderIdRef.current;
-      if (orderId && String(existing.id).startsWith('odoo_line_')) {
-        const lineId = Number(String(existing.id).replace('odoo_line_', ''));
-        const promise = updateOrderLineOdoo({ lineId, qty: newQty, price_unit: existing.price_unit ?? existing.price, orderId })
-          .catch(() => Toast.show({ type: 'error', text1: 'Odoo Error', text2: 'Failed to update quantity' }))
-          .finally(() => { pendingSyncs.current = pendingSyncs.current.filter(pr => pr !== promise); });
-        pendingSyncs.current.push(promise);
-      } else if (orderId) {
-        const promise = addLineToOrderOdoo({ orderId, productId: p.id, qty: qtyOverride, price_unit: productPrice, name: productName })
-          .catch(() => Toast.show({ type: 'error', text1: 'Odoo Error', text2: 'Failed to sync with server' }))
-          .finally(() => { pendingSyncs.current = pendingSyncs.current.filter(pr => pr !== promise); });
-        pendingSyncs.current.push(promise);
-      }
-    } else {
-      // New product — add fresh entry
+    if (hasNote) {
+      // Note provided — ALWAYS create a separate line with unique ID
+      const uniqueId = `${p.id}_${Date.now()}`;
       const product = {
-        id: p.id,
+        id: uniqueId,
         remoteId: p.id,
         name: productName,
         product_name: productName,
@@ -1401,16 +1384,62 @@ const POSProducts = ({ navigation, route }) => {
         price_unit: productPrice,
         quantity: qtyOverride,
         imageUrl: p.imageUrl || p.image_url || p.image || '',
+        note: note.trim(),
       };
       addProduct(product);
 
-      // Create the server order lazily (first product triggers it), then add line
       ensureOrderId().then(orderId => {
-        const promise = addLineToOrderOdoo({ orderId, productId: p.id, qty: qtyOverride, price_unit: productPrice, name: productName })
+        const promise = addLineToOrderOdoo({ orderId, productId: p.id, qty: qtyOverride, price_unit: productPrice, name: productName, note: note.trim() })
           .catch(() => Toast.show({ type: 'error', text1: 'Odoo Error', text2: 'Failed to sync with server' }))
           .finally(() => { pendingSyncs.current = pendingSyncs.current.filter(pr => pr !== promise); });
         pendingSyncs.current.push(promise);
       }).catch(() => Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to create order' }));
+    } else {
+      // No note — existing merge behavior
+      const localCart = useProductStore.getState().cartItems[useProductStore.getState().currentCustomerId] || [];
+      const existing = localCart.find(item => {
+        if (item.note) return false; // Don't merge into items that have notes
+        const itemProductId = item.remoteId || (typeof item.id === 'number' ? item.id : null);
+        return itemProductId === p.id;
+      });
+
+      if (existing) {
+        const newQty = Number(existing.quantity ?? existing.qty ?? 1) + qtyOverride;
+        addProduct({ ...existing, quantity: newQty, qty: newQty });
+
+        const orderId = orderIdRef.current;
+        if (orderId && String(existing.id).startsWith('odoo_line_')) {
+          const lineId = Number(String(existing.id).replace('odoo_line_', ''));
+          const promise = updateOrderLineOdoo({ lineId, qty: newQty, price_unit: existing.price_unit ?? existing.price, orderId })
+            .catch(() => Toast.show({ type: 'error', text1: 'Odoo Error', text2: 'Failed to update quantity' }))
+            .finally(() => { pendingSyncs.current = pendingSyncs.current.filter(pr => pr !== promise); });
+          pendingSyncs.current.push(promise);
+        } else if (orderId) {
+          const promise = addLineToOrderOdoo({ orderId, productId: p.id, qty: qtyOverride, price_unit: productPrice, name: productName })
+            .catch(() => Toast.show({ type: 'error', text1: 'Odoo Error', text2: 'Failed to sync with server' }))
+            .finally(() => { pendingSyncs.current = pendingSyncs.current.filter(pr => pr !== promise); });
+          pendingSyncs.current.push(promise);
+        }
+      } else {
+        const product = {
+          id: p.id,
+          remoteId: p.id,
+          name: productName,
+          product_name: productName,
+          price: productPrice,
+          price_unit: productPrice,
+          quantity: qtyOverride,
+          imageUrl: p.imageUrl || p.image_url || p.image || '',
+        };
+        addProduct(product);
+
+        ensureOrderId().then(orderId => {
+          const promise = addLineToOrderOdoo({ orderId, productId: p.id, qty: qtyOverride, price_unit: productPrice, name: productName })
+            .catch(() => Toast.show({ type: 'error', text1: 'Odoo Error', text2: 'Failed to sync with server' }))
+            .finally(() => { pendingSyncs.current = pendingSyncs.current.filter(pr => pr !== promise); });
+          pendingSyncs.current.push(promise);
+        }).catch(() => Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to create order' }));
+      }
     }
 
     // Persist the product name so it survives screen remounts
@@ -1427,6 +1456,7 @@ const POSProducts = ({ navigation, route }) => {
     setConfirmVisible(false);
     setQuickProduct(p);
     setQuickQty(1);
+    setQuickNote('');
     setQuickAddVisible(true);
   }, []);
 
@@ -1434,6 +1464,7 @@ const POSProducts = ({ navigation, route }) => {
     if (!quickProduct) return;
     const addedName = quickProduct.product_name || quickProduct.name || 'Product';
     const addedQty = quickQty;
+    const addedNote = quickNote.trim();
     const prodToAdd = quickProduct;
     setQuickAddVisible(false);
     setConfirmName(addedName);
@@ -1441,9 +1472,10 @@ const POSProducts = ({ navigation, route }) => {
     setConfirmVisible(true);
     setQuickProduct(null);
     setQuickQty(1);
-    InteractionManager.runAfterInteractions(() => handleAdd(prodToAdd, addedQty));
+    setQuickNote('');
+    InteractionManager.runAfterInteractions(() => handleAdd(prodToAdd, addedQty, addedNote));
     setTimeout(() => setConfirmVisible(false), 1000);
-  }, [quickProduct, quickQty, handleAdd]);
+  }, [quickProduct, quickQty, quickNote, handleAdd]);
 
   const handleViewCart = useCallback(() => {
     // Sync with server before showing cart
@@ -1807,6 +1839,19 @@ const POSProducts = ({ navigation, route }) => {
                         <Text style={localStyles.qtyText}>+</Text>
                       </TouchableOpacity>
                     </View>
+                  </View>
+                  {/* Note input */}
+                  <View style={{ marginTop: 12 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#1a1a2e', marginBottom: 6 }}>{t.notes || 'Note'}</Text>
+                    <TextInput
+                      style={localStyles.noteInput}
+                      value={quickNote}
+                      onChangeText={setQuickNote}
+                      placeholder="e.g. no sugar, extra ice..."
+                      placeholderTextColor="#bbb"
+                      multiline
+                      textAlignVertical="top"
+                    />
                   </View>
                   <View style={localStyles.divider} />
                   <View style={localStyles.actionRow}>
