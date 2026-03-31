@@ -2214,6 +2214,56 @@ export const fetchPosPresets = async ({ limit = 200 } = {}) => {
   }
 };
 
+// Fetch schedule records for a POS preset (e.g. Takeout time slots by day)
+export const fetchPresetSchedule = async (presetId) => {
+  try {
+    const { baseUrl, headers } = await _buildOdooHeaders();
+
+    // Read the preset to get attendance_ids (schedule records)
+    const presetResp = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST', headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0', method: 'call',
+        params: { model: 'pos.preset', method: 'read', args: [[presetId]], kwargs: { fields: ['attendance_ids'] } },
+        id: new Date().getTime(),
+      }),
+    });
+    const presetData = await presetResp.json();
+    const attendanceIds = presetData?.result?.[0]?.attendance_ids;
+    if (!Array.isArray(attendanceIds) || attendanceIds.length === 0) return { result: [] };
+
+    // Fetch the attendance records from resource.calendar.attendance
+    const schedResp = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+      method: 'POST', headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0', method: 'call',
+        params: {
+          model: 'resource.calendar.attendance',
+          method: 'search_read',
+          args: [[['id', 'in', attendanceIds]]],
+          kwargs: { fields: ['id', 'name', 'dayofweek', 'day_period', 'hour_from', 'hour_to'] },
+        },
+        id: new Date().getTime(),
+      }),
+    });
+    const schedData = await schedResp.json();
+    if (schedData.error) return { result: [] };
+
+    // Normalize: resource.calendar.attendance uses 'dayofweek' as string index ('0'=Mon, '1'=Tue, ...)
+    const dayMap = { '0': 'monday', '1': 'tuesday', '2': 'wednesday', '3': 'thursday', '4': 'friday', '5': 'saturday', '6': 'sunday' };
+    const normalized = (schedData.result || []).map(r => ({
+      ...r,
+      day_of_week: dayMap[String(r.dayofweek)] || String(r.dayofweek || '').toLowerCase(),
+    }));
+
+    console.log('[fetchPresetSchedule] loaded', normalized.length, 'records, sample:', JSON.stringify(normalized[0]));
+    return { result: normalized };
+  } catch (error) {
+    console.warn('[fetchPresetSchedule] error:', error);
+    return { result: [] };
+  }
+};
+
 // Force recalculation of pos.order totals after line changes
 export const recomputePosOrderTotals = async (orderId) => {
   try {

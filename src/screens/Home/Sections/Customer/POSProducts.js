@@ -2,7 +2,7 @@ import React, { useEffect, useCallback, useState, useMemo, useRef } from 'react'
 import { View, Text, TextInput, FlatList, TouchableOpacity, ScrollView, Modal, Pressable, StyleSheet as RNStyleSheet, InteractionManager, Platform, Alert, ActivityIndicator } from 'react-native';
 import { NavigationHeader } from '@components/Header';
 import { ProductsList } from '@components/Product';
-import { fetchPosPresets, addLineToOrderOdoo, updateOrderLineOdoo, removeOrderLineOdoo, fetchPosOrderById, fetchOrderLinesByIds, fetchPosCategoriesOdoo, fetchProductCategoriesOdoo, fetchCategoriesOdoo, preloadAllProducts, createDraftPosOrderOdoo, fetchPosPaymentMethodsOdoo, createPosOrderOdoo, createPosPaymentOdoo, fetchPOSSessions, fetchPricelistsOdoo, fetchPricelistItemsOdoo, updatePosOrderFields } from '@api/services/generalApi';
+import { fetchPosPresets, addLineToOrderOdoo, updateOrderLineOdoo, removeOrderLineOdoo, fetchPosOrderById, fetchOrderLinesByIds, fetchPosCategoriesOdoo, fetchProductCategoriesOdoo, fetchCategoriesOdoo, preloadAllProducts, createDraftPosOrderOdoo, fetchPosPaymentMethodsOdoo, createPosOrderOdoo, createPosPaymentOdoo, fetchPOSSessions, fetchPricelistsOdoo, fetchPricelistItemsOdoo, updatePosOrderFields, fetchPresetSchedule } from '@api/services/generalApi';
 import { useFocusEffect } from '@react-navigation/native';
 import { FlashList } from '@shopify/flash-list';
 import { formatData } from '@utils/formatters';
@@ -450,6 +450,15 @@ const POSProducts = ({ navigation, route }) => {
   const [confirmQty, setConfirmQty] = useState(1);
   const [backLoading, setBackLoading] = useState(false);
 
+  // ── KOT wizard (order name + time slot) ──────────────────────
+  const [kotWizardStep, setKotWizardStep] = useState(null); // null | 'name' | 'time'
+  const [kotCustomerName, setKotCustomerName] = useState('');
+  const [kotRecentNames, setKotRecentNames] = useState([]);
+  const [kotSelectedDate, setKotSelectedDate] = useState(null);
+  const [kotSelectedTime, setKotSelectedTime] = useState(null);
+  const kotPendingParamsRef = useRef(null);
+  const [kotSchedule, setKotSchedule] = useState(null);
+
   // Payment state
   const [payModalVisible, setPayModalVisible] = useState(false);
   const [selectedPayMethodId, setSelectedPayMethodId] = useState(null);
@@ -483,15 +492,8 @@ const POSProducts = ({ navigation, route }) => {
     searchTimer.current = setTimeout(() => setDebouncedSearch(text), 300);
   }, []);
 
-  const _kotGetNext7Days = () => {
-    const days = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      days.push(d);
-    }
-    return days;
-  };
+  const WEEKDAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   const _kotFormatDate = (d) => {
     const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -500,28 +502,84 @@ const POSProducts = ({ navigation, route }) => {
     return `${mm}/${dd}/${yyyy}`;
   };
 
-  const KOT_TIME_SLOTS = (() => {
+  const _kotFormatDateLabel = (d) => {
+    return `${WEEKDAY_SHORT[d.getDay()]} ${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  const _generateSlots = (hourFrom, hourTo) => {
     const slots = [];
+    const startMin = Math.round(hourFrom * 60);
+    const endMin = Math.round(hourTo * 60);
+    for (let m = startMin; m < endMin; m += 20) {
+      slots.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
+    }
+    return slots;
+  };
+
+  const _periodLabel = (period) => {
+    const p = String(period || '').toLowerCase();
+    if (p === 'break' || p === 'lunch') return 'Lunch';
+    if (p === 'afternoon') return 'Afternoon';
+    if (p === 'morning') return 'Morning';
+    if (p === 'evening') return 'Evening';
+    return period || 'Other';
+  };
+
+  // Filter out past time slots for today
+  const _filterPastSlots = (slots, selectedDate) => {
+    const now = new Date();
+    if (!selectedDate || selectedDate.toDateString() !== now.toDateString()) return slots;
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    return slots.filter(s => {
+      const [hh, mm] = s.split(':').map(Number);
+      return hh * 60 + mm > currentMinutes;
+    });
+  };
+
+  // Available dates — from schedule or fallback to next 7 days
+  const kotAvailableDates = useMemo(() => {
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      days.push(d);
+    }
+    return days;
+  }, []);
+
+  // Time groups — from schedule or fallback with past-time filtering
+  const kotTimeGroups = useMemo(() => {
+    // Fallback groups
+    const fallbackSlots = [];
     for (let h = 7; h <= 22; h++) {
       for (let m = 0; m < 60; m += 20) {
         if (h === 22 && m > 0) break;
-        slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+        fallbackSlots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
       }
     }
-    return slots;
-  })();
+    const fallbackGroup = (slot) => { const h = parseInt(slot.split(':')[0], 10); return h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : 'Evening'; };
+    const buildFallback = () => ['Morning', 'Afternoon', 'Evening'].map(g => ({
+      label: g, slots: _filterPastSlots(fallbackSlots.filter(s => fallbackGroup(s) === g), kotSelectedDate),
+    })).filter(g => g.slots.length > 0);
 
-  const _kotTimeGroup = (slot) => {
-    const h = parseInt(slot.split(':')[0], 10);
-    if (h < 12) return 'Morning';
-    if (h < 17) return 'Afternoon';
-    return 'Evening';
-  };
+    if (!kotSchedule || !Array.isArray(kotSchedule) || kotSchedule.length === 0 || !kotSelectedDate) {
+      return buildFallback();
+    }
 
-  const kotTimeGroups = ['Morning', 'Afternoon', 'Evening'].map(g => ({
-    label: g,
-    slots: KOT_TIME_SLOTS.filter(s => _kotTimeGroup(s) === g),
-  })).filter(g => g.slots.length > 0);
+    const selectedDayName = WEEKDAY_NAMES[kotSelectedDate.getDay()];
+    const dayRecords = kotSchedule.filter(s => String(s.day_of_week || '').toLowerCase() === selectedDayName);
+    if (dayRecords.length === 0) return []; // No schedule for this day
+
+    const groups = [];
+    for (const rec of dayRecords) {
+      const hourFrom = typeof rec.hour_from === 'number' ? rec.hour_from : null;
+      const hourTo = typeof rec.hour_to === 'number' ? rec.hour_to : null;
+      if (hourFrom === null || hourTo === null || hourFrom >= hourTo) continue;
+      const slots = _filterPastSlots(_generateSlots(hourFrom, hourTo), kotSelectedDate);
+      if (slots.length > 0) groups.push({ label: _periodLabel(rec.day_period), slots });
+    }
+    return groups;
+  }, [kotSchedule, kotSelectedDate]);
 
   const _kotLoadRecentNames = async () => {
     try {
@@ -543,11 +601,33 @@ const POSProducts = ({ navigation, route }) => {
   const openKotWizard = async (baseParams) => {
     kotPendingParamsRef.current = baseParams;
     setKotCustomerName('');
-    setKotSelectedDate(_kotGetNext7Days()[0]);
     setKotSelectedTime(null);
+    setKotSelectedDate(null);
+
+    // Fetch preset schedule from Odoo
+    const presetId = route?.params?.preset_id || 10;
+    try {
+      const resp = await fetchPresetSchedule(presetId);
+      console.log('[KOT Wizard] schedule fetch result:', JSON.stringify(resp?.result?.map(r => ({ name: r.name, day: r.day_of_week, period: r.day_period, from: r.hour_from, to: r.hour_to }))));
+      if (resp?.result && Array.isArray(resp.result) && resp.result.length > 0) {
+        setKotSchedule(resp.result);
+      } else {
+        setKotSchedule(null);
+      }
+    } catch (_) {
+      setKotSchedule(null);
+    }
+
     await _kotLoadRecentNames();
     setKotWizardStep('name');
   };
+
+  // Auto-select first available date when wizard opens
+  useEffect(() => {
+    if (kotWizardStep && kotAvailableDates.length > 0 && !kotSelectedDate) {
+      setKotSelectedDate(kotAvailableDates[0]);
+    }
+  }, [kotSchedule, kotWizardStep, kotAvailableDates, kotSelectedDate]);
 
   const onKotNameNext = () => setKotWizardStep('time');
 
@@ -568,8 +648,9 @@ const POSProducts = ({ navigation, route }) => {
         const dd = String(d.getDate()).padStart(2, '0');
         const dateStr = `${d.getFullYear()}-${mm}-${dd}`;
         odooFields.shipping_date = dateStr;
-        // preset_time is a datetime field — combine date + time as "YYYY-MM-DD HH:MM:SS"
-        odooFields.preset_time = `${dateStr} ${kotSelectedTime || '00:00'}:00`;
+        if (kotSelectedTime) {
+          odooFields.preset_time = `${dateStr} ${kotSelectedTime}:00`;
+        }
       }
       if (Object.keys(odooFields).length > 0) {
         console.log('[KOT Wizard] saving to Odoo orderId:', oid, 'fields:', JSON.stringify(odooFields));
@@ -1913,6 +1994,95 @@ const POSProducts = ({ navigation, route }) => {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* KOT Wizard Step 1: Order Name */}
+      <Modal visible={kotWizardStep === 'name'} transparent animationType="fade" onRequestClose={() => setKotWizardStep(null)}>
+        <View style={kotStyles.overlay}>
+          <View style={kotStyles.box}>
+            <View style={kotStyles.titleRow}>
+              <Text style={kotStyles.title}>Edit Order Name</Text>
+              <TouchableOpacity onPress={() => setKotWizardStep(null)}><Text style={kotStyles.closeX}>✕</Text></TouchableOpacity>
+            </View>
+            <TextInput
+              style={kotStyles.input}
+              placeholder="e.g. John"
+              placeholderTextColor="#aaa"
+              value={kotCustomerName}
+              onChangeText={setKotCustomerName}
+              autoFocus
+            />
+            {kotRecentNames.length > 0 && (
+              <View style={kotStyles.recentRow}>
+                {kotRecentNames.map((n, i) => (
+                  <TouchableOpacity key={i} style={kotStyles.recentChip} onPress={() => setKotCustomerName(n)}>
+                    <Text style={kotStyles.recentChipText}>{n}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            <View style={kotStyles.btnRow}>
+              <TouchableOpacity style={kotStyles.applyBtn} onPress={onKotNameNext}>
+                <Text style={kotStyles.applyBtnText}>Apply</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={kotStyles.discardBtn} onPress={() => setKotWizardStep(null)}>
+                <Text style={kotStyles.discardBtnText}>Discard</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* KOT Wizard Step 2: Date + Time Slot */}
+      <Modal visible={kotWizardStep === 'time'} transparent animationType="fade" onRequestClose={() => setKotWizardStep(null)}>
+        <View style={kotStyles.overlay}>
+          <View style={kotStyles.box}>
+            <View style={kotStyles.titleRow}>
+              <Text style={kotStyles.title}>Select Date & Time</Text>
+              <TouchableOpacity onPress={() => setKotWizardStep(null)}><Text style={kotStyles.closeX}>✕</Text></TouchableOpacity>
+            </View>
+            {/* Date chips */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+              {kotAvailableDates.map((d, i) => {
+                const label = _kotFormatDateLabel(d);
+                const active = kotSelectedDate && kotSelectedDate.toDateString() === d.toDateString();
+                return (
+                  <TouchableOpacity key={i} style={[kotStyles.dateChip, active && kotStyles.dateChipActive]} onPress={() => { setKotSelectedDate(d); setKotSelectedTime(null); }}>
+                    <Text style={[kotStyles.dateChipText, active && kotStyles.dateChipTextActive]}>{label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            {/* Time slots */}
+            {kotTimeGroups.length > 0 ? (
+              <ScrollView style={{ maxHeight: 220 }} showsVerticalScrollIndicator={false}>
+                {kotTimeGroups.map(group => (
+                  <View key={group.label} style={{ marginBottom: 10 }}>
+                    <Text style={kotStyles.groupLabel}>{group.label}</Text>
+                    <View style={kotStyles.slotsRow}>
+                      {group.slots.map(slot => {
+                        const active = kotSelectedTime === slot;
+                        return (
+                          <TouchableOpacity key={slot} style={[kotStyles.timeChip, active && kotStyles.timeChipActive]} onPress={() => setKotSelectedTime(active ? null : slot)}>
+                            <Text style={[kotStyles.timeChipText, active && kotStyles.timeChipTextActive]}>{slot}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={{ backgroundColor: '#fff8e1', borderRadius: 10, padding: 14, marginVertical: 12 }}>
+                <Text style={{ color: '#b8860b', fontSize: 14, fontWeight: '600', textAlign: 'center' }}>No slot available for this day</Text>
+              </View>
+            )}
+            <TouchableOpacity style={kotStyles.confirmBtn} onPress={onKotTimeConfirm}>
+              <Text style={kotStyles.confirmBtnText}>Confirm</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 };

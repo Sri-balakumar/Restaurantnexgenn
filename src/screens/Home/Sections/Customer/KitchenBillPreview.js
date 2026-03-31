@@ -106,7 +106,9 @@ const KitchenBillPreview = ({ navigation, route }) => {
       if (parts.length === 3) {
         const dateStr = `${parts[2]}-${parts[0]}-${parts[1]}`;
         fields.shipping_date = dateStr;
-        fields.preset_time = `${dateStr} ${scheduledTime || '00:00'}:00`;
+        if (scheduledTime) {
+          fields.preset_time = `${dateStr} ${scheduledTime}:00`;
+        }
       }
     }
     if (Object.keys(fields).length > 0) {
