@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="pos_config_view_form_kot" model="ir.ui.view">
+        <field name="name">pos.config.form.kot</field>
+        <field name="model">pos.config</field>
+        <field name="inherit_id" ref="point_of_sale.pos_config_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <group string="KOT Printer Settings">
+                    <group>
+                        <field name="kot_printer_ip" placeholder="192.168.0.100"/>
+                        <field name="kot_printer_port" placeholder="9100"/>
+                    </group>
+                    <group>
+                        <field name="kot_use_print_agent"/>
+                        <field name="kot_agent_url" placeholder="http://localhost:5123"
+                               invisible="not kot_use_print_agent"/>
+                    </group>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>
