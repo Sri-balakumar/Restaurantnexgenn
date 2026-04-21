@@ -1696,19 +1696,22 @@ const POSProducts = ({ navigation, route }) => {
         {!isOrderClosed && (
         <View style={localStyles.bottomActions}>
           <TouchableOpacity disabled={cartItems.length === 0} onPress={async () => {
+            console.log('[KitchenBill] button pressed, order_type=', route?.params?.order_type, 'cartItems=', cartItems.length);
             // Wait for all pending add-line API calls to complete before navigating
             if (pendingSyncs.current.length > 0) {
               try { await Promise.all(pendingSyncs.current); } catch (_) {}
             }
             const orderId = orderIdRef.current || orderInfo?.id;
-            navigation.navigate('KitchenBillPreview', {
+            const baseParams = {
               orderId, orderName: orderInfo?.name || '', tableName: orderInfo?.table_id?.[1] || '',
               serverName: route?.params?.userName || '', items: cartItems,
               cartOwner: route?.params?.cartOwner || (orderId ? `order_${orderId}` : 'pos_guest'),
               order_type: route?.params?.order_type,
               sessionId,
               userId,
-            });
+            };
+            console.log('[KitchenBill] calling openKotWizard with orderId=', orderId, 'tableName=', baseParams.tableName);
+            openKotWizard(baseParams);
           }} style={[localStyles.kitchenBillBtn, cartItems.length === 0 && { opacity: 0.4 }]}>
             <Text style={localStyles.kitchenBillBtnText}>{t.kitchenBill}</Text>
           </TouchableOpacity>
@@ -2131,5 +2134,58 @@ const POSProducts = ({ navigation, route }) => {
     </SafeAreaView>
   );
 };
+
+const kotStyles = RNStyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
+  box: { width: '88%', backgroundColor: '#fff', borderRadius: 16, padding: 20 },
+  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  title: { fontSize: 16, fontWeight: '800', color: '#111' },
+  closeX: { fontSize: 18, color: '#6b7280', paddingHorizontal: 6 },
+  input: {
+    borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: '#111',
+    marginBottom: 12,
+  },
+  recentRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 12 },
+  recentChip: {
+    backgroundColor: '#f3f4f6', borderRadius: 16,
+    paddingVertical: 6, paddingHorizontal: 12, marginRight: 8, marginBottom: 8,
+  },
+  recentChipText: { fontSize: 13, color: '#374151', fontWeight: '600' },
+  btnRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4 },
+  applyBtn: {
+    backgroundColor: '#2E294E', borderRadius: 10,
+    paddingVertical: 10, paddingHorizontal: 18, marginRight: 10,
+  },
+  applyBtnText: { color: '#fff', fontWeight: '800' },
+  discardBtn: {
+    backgroundColor: '#f3f4f6', borderRadius: 10,
+    paddingVertical: 10, paddingHorizontal: 18,
+  },
+  discardBtnText: { color: '#374151', fontWeight: '700' },
+  dateChip: {
+    borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 10,
+    paddingVertical: 8, paddingHorizontal: 14, marginRight: 8,
+    backgroundColor: '#fff',
+  },
+  dateChipActive: { backgroundColor: '#2E294E', borderColor: '#2E294E' },
+  dateChipText: { fontSize: 13, color: '#374151', fontWeight: '700' },
+  dateChipTextActive: { color: '#fff' },
+  groupLabel: { fontSize: 13, fontWeight: '700', color: '#6b7280', marginBottom: 6 },
+  slotsRow: { flexDirection: 'row', flexWrap: 'wrap' },
+  timeChip: {
+    borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8,
+    paddingVertical: 6, paddingHorizontal: 12, marginRight: 8, marginBottom: 8,
+    backgroundColor: '#fff',
+  },
+  timeChipActive: { backgroundColor: '#2E294E', borderColor: '#2E294E' },
+  timeChipText: { fontSize: 13, color: '#374151', fontWeight: '600' },
+  timeChipTextActive: { color: '#fff' },
+  confirmBtn: {
+    backgroundColor: '#2E294E', borderRadius: 10,
+    paddingVertical: 12, alignItems: 'center', marginTop: 8,
+  },
+  confirmBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+});
 
 export default POSProducts;

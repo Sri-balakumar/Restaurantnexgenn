@@ -14,6 +14,7 @@ import {
   I18nManager,
 } from "react-native";
 import { COLORS, FONT_FAMILY } from "@constants/theme";
+import { MaterialIcons } from "@expo/vector-icons";
 import { LogBox } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { OverlayLoader } from "@components/Loader";
@@ -180,6 +181,16 @@ const LoginScreenOdoo = () => {
             style={styles.logo}
             resizeMode="contain"
           />
+          {/* Device Setup gear */}
+          <TouchableOpacity
+            onPress={() => navigation.navigate('DeviceSetup')}
+            style={styles.gearBtn}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <MaterialIcons name="settings" size={22} color="#fff" />
+          </TouchableOpacity>
+
           {/* Language Toggle */}
           <View style={styles.langToggleWrap}>
             <TouchableOpacity
@@ -452,6 +463,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: FONT_FAMILY.urbanistBold,
     letterSpacing: 0.5,
+  },
+  gearBtn: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   // Language toggle styles
   langToggleWrap: {

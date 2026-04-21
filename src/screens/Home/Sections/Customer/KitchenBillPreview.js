@@ -22,6 +22,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import kotService from '../../../../api/services/kotService';
+import { updatePosOrderFields } from '../../../../api/services/generalApi';
 import useTranslation from '../../../../hooks/useTranslation';
 
 // ── Snapshot store (tracks what was already printed) ───────────
@@ -74,7 +75,12 @@ const KitchenBillPreview = ({ navigation, route }) => {
     serverName = '',
     order_type = null,
     guest_count = 0,
+    customerName = '',
+    scheduledDate = '',
+    scheduledTime = '',
   } = route?.params || {};
+
+  console.log('[KitchenBillPreview] mounted — customerName=', customerName, 'scheduledDate=', scheduledDate, 'scheduledTime=', scheduledTime, 'tableName=', tableName, 'orderName=', orderName);
 
   const [printingMode, setPrintingMode] = useState(null);
   const [userName, setUserName] = useState(serverName);
@@ -178,14 +184,37 @@ const KitchenBillPreview = ({ navigation, route }) => {
           return;
         }
 
+        // Compute slot_time from wizard selection, or fall back to current date+time.
+        // Forced fallback so the printed KOT always has a value even when the wizard is skipped.
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        const nowDate = `${pad(now.getMonth() + 1)}/${pad(now.getDate())}/${now.getFullYear()}`;
+        const nowTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        const slotTime = (scheduledDate && scheduledTime)
+          ? `${scheduledDate} ${scheduledTime}`
+          : (scheduledTime
+              ? `${nowDate} ${scheduledTime}`
+              : (scheduledDate
+                  ? `${scheduledDate} ${nowTime}`
+                  : `${nowDate} ${nowTime}`));
+
+        // Forced fallback for order_name — wizard value first, then Odoo order name, then table name, then 'Order'.
+        const validOrderName = (v) => v && String(v).trim() && String(v).trim() !== '/';
+        const orderNameOut = validOrderName(customerName)
+          ? customerName.trim()
+          : (validOrderName(orderName)
+              ? orderName.trim()
+              : (validOrderName(tableName) ? tableName.trim() : 'Order'));
+
         const kotData = {
           table_name: tableName,
-          order_name: orderName,
+          order_name: orderNameOut,
           order_id: orderId || null,
           cashier: userName,
           order_type: orderTypeLabel,
           guest_count: guest_count,
           print_type: deltaOnly ? 'ADDON' : 'NEW',
+          slot_time: slotTime,
           items: printItems.map((it) => ({
             name: it.name,
             qty: it.qty,
@@ -213,7 +242,7 @@ const KitchenBillPreview = ({ navigation, route }) => {
         setPrintingMode(null);
       }
     },
-    [deltaItems, mapped, tableName, orderName, orderId, userName, orderTypeLabel, guest_count, snapshotKey, items],
+    [deltaItems, mapped, tableName, orderName, orderId, userName, orderTypeLabel, guest_count, snapshotKey, items, customerName, scheduledDate, scheduledTime],
   );
 
   // ── Render a single line item ────────────────────────────────

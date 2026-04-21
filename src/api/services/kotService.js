@@ -148,16 +148,32 @@ export async function printKot(kotData) {
     const printerIp = posConfig?.kot_printer_ip || '192.168.0.100';
     const printerPort = posConfig?.kot_printer_port || 9100;
 
+    // Backstop fallbacks — guarantee order_name and slot_time are never empty/"/"
+    const _now = new Date();
+    const _pad = (n) => String(n).padStart(2, '0');
+    const _nowDate = `${_pad(_now.getMonth() + 1)}/${_pad(_now.getDate())}/${_now.getFullYear()}`;
+    const _nowTime = `${_pad(_now.getHours())}:${_pad(_now.getMinutes())}`;
+
+    const _rawName = String(kotData.order_name || '').trim();
+    const _rawTable = String(kotData.table_name || '').trim();
+    const _nameOut =
+      _rawName && _rawName !== '/' ? _rawName :
+      _rawTable ? _rawTable :
+      (kotData.order_id ? `Order ${kotData.order_id}` : 'Order');
+
+    const _rawSlot = String(kotData.slot_time || '').trim();
+    const _slotOut = _rawSlot || `${_nowDate} ${_nowTime}`;
+
     const data = {
       table_name: kotData.table_name || '',
-      order_name: kotData.order_name || '',
-      order_number:
-        kotData.order_name || (kotData.order_id ? String(kotData.order_id) : ''),
+      order_name: _nameOut,
+      order_number: _nameOut,
       cashier: kotData.cashier || '',
       waiter: kotData.cashier || '',
       order_type: kotData.order_type || 'Dine In',
       guest_count: kotData.guest_count || 0,
       print_type: kotData.print_type || 'NEW',
+      slot_time: _slotOut,
       config_id: posConfig?.id || configId || false,
       printer_ip: printerIp,
       printer_port: printerPort,
