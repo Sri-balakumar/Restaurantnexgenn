@@ -7,6 +7,7 @@ import { HomeScreen, ProfileScreen } from '@screens';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '@stores/auth';
 import { clearProductCache } from '@api/services/generalApi';
+import { clearPosConfigCache } from '@api/services/kotService';
 import { FONT_FAMILY } from '@constants/theme';
 import { useTranslation } from '@hooks';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -89,6 +90,7 @@ const AppNavigator = () => {
         style: 'destructive',
         onPress: async () => {
           clearProductCache();
+          clearPosConfigCache();
           await AsyncStorage.multiRemove(['userData', 'odoo_session_id']);
           logoutStore();
           navigation.reset({ index: 0, routes: [{ name: 'Login' }] });

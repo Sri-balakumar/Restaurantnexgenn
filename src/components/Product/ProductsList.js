@@ -11,7 +11,7 @@ const ProductsList = ({ item, onPress, showQuickAdd, onQuickAdd }) => {
         item?.product_name?.length > 35 ? item?.product_name?.substring(0, 60) + '...' : item?.product_name;
 
     const currency = useCurrencyStore((state) => state.currency);
-    const priceValue = (item?.price ?? item?.list_price ?? 0);
+    const priceValue = (item?.displayPrice ?? item?.price ?? item?.list_price ?? 0);
 
 
     return (

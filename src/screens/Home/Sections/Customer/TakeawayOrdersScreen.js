@@ -3,6 +3,7 @@ import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Alert, Style
 import { NavigationHeader } from '@components/Header';
 import { SafeAreaView } from '@components/containers';
 import { fetchPosPresets, fetchOrders, fetchPosOrderById, fetchOrderLinesByIds } from '@api/services/generalApi';
+import { callKw } from '@api/services/kotService';
 import { useFocusEffect } from '@react-navigation/native';
 import { formatCurrency } from '@utils/formatters/currency';
 import { useTranslation } from '@hooks';
@@ -16,10 +17,11 @@ const TakeawayOrdersScreen = ({ navigation, route }) => {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch presets and orders in parallel
-      const [presetsResp, ordersResp] = await Promise.all([
+      // Fetch presets, orders, and tax rates in parallel
+      const [presetsResp, ordersResp, taxResp] = await Promise.all([
         fetchPosPresets(),
         fetchOrders({ sessionId, limit: 500, fields: ['id','name','state','amount_total','table_id','create_date','preset_id','lines','floating_order_name'] }),
+        callKw('account.tax', 'search_read', [[]], { fields: ['id', 'amount', 'price_include'], limit: 500 }),
       ]);
       const presets = (presetsResp && presetsResp.result) || [];
       const takePresetIds = presets.filter(p => String(p.name || '').toLowerCase().includes('take')).map(p => p.id);
@@ -27,11 +29,62 @@ const TakeawayOrdersScreen = ({ navigation, route }) => {
       const filtered = all.filter(o => {
         const p = Array.isArray(o.preset_id) ? o.preset_id[0] : o.preset_id;
         if (!p || !takePresetIds.includes(p)) return false;
-        // Only show orders that have at least 1 product line
         const hasLines = Array.isArray(o.lines) ? o.lines.length > 0 : Number(o.amount_total || 0) > 0;
         return hasLines;
       });
-      setOrders(filtered);
+
+      // Build tax map: taxId -> { amount, priceInclude }
+      const taxMap = {};
+      (taxResp || []).forEach(t => { taxMap[t.id] = { amount: Number(t.amount) || 0, priceInclude: !!t.price_include }; });
+
+      // Collect every line across all filtered orders in one RPC
+      const allLineIds = [];
+      filtered.forEach(o => { if (Array.isArray(o.lines)) allLineIds.push(...o.lines); });
+
+      let linesByOrder = {};
+      let productIds = new Set();
+      if (allLineIds.length > 0) {
+        const groupedResp = await callKw('pos.order.line', 'search_read',
+          [[['id', 'in', allLineIds]]],
+          { fields: ['id', 'order_id', 'product_id', 'qty', 'price_unit'], limit: allLineIds.length });
+        (groupedResp || []).forEach(l => {
+          const oid = Array.isArray(l.order_id) ? l.order_id[0] : l.order_id;
+          const pid = Array.isArray(l.product_id) ? l.product_id[0] : l.product_id;
+          if (pid) productIds.add(pid);
+          if (!linesByOrder[oid]) linesByOrder[oid] = [];
+          linesByOrder[oid].push({ qty: Number(l.qty || 0), price_unit: Number(l.price_unit || 0), productId: pid });
+        });
+      }
+
+      // Fetch taxes_id per referenced product
+      let productTaxMap = {};
+      if (productIds.size > 0) {
+        const prodResp = await callKw('product.product', 'search_read',
+          [[['id', 'in', Array.from(productIds)]]],
+          { fields: ['id', 'taxes_id'], limit: productIds.size });
+        (prodResp || []).forEach(p => {
+          productTaxMap[p.id] = Array.isArray(p.taxes_id) ? p.taxes_id : [];
+        });
+      }
+
+      // Compute tax-inclusive total per order using the same rule as the register
+      const withTax = filtered.map(o => {
+        const lines = linesByOrder[o.id] || [];
+        let total = 0;
+        lines.forEach(l => {
+          const net = l.qty * l.price_unit;
+          let addOn = 0;
+          (productTaxMap[l.productId] || []).forEach(tid => {
+            const t = taxMap[tid];
+            if (t && !t.priceInclude) addOn += t.amount;
+          });
+          total += net * (1 + addOn / 100);
+        });
+        const totalRounded = Math.round(total * 1000) / 1000;
+        return { ...o, amount_total_incl: totalRounded > 0 ? totalRounded : Number(o.amount_total || 0) };
+      });
+
+      setOrders(withTax);
     } catch (e) {
       Alert.alert(t.error, t.failedToLoadOrders);
     } finally {
@@ -112,7 +165,7 @@ const TakeawayOrdersScreen = ({ navigation, route }) => {
             <Text style={s.cardDate}>{formatDate(item.create_date)}</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={s.cardAmount}>{formatCurrency(item.amount_total || 0)}</Text>
+            <Text style={s.cardAmount}>{formatCurrency(item.amount_total_incl ?? item.amount_total ?? 0)}</Text>
             <View style={[s.statusBadge, { backgroundColor: status.bg }]}>
               <Text style={[s.statusText, { color: status.text }]}>{getStatusLabel(item.state)}</Text>
             </View>

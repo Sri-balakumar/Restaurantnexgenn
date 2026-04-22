@@ -276,7 +276,7 @@ const translations = {
     kotPrinted: 'KOT Printed',
     kotSentToPrinter: 'Kitchen Order Ticket sent to printer.',
     moduleNotInstalled: 'Module Not Installed',
-    kotModuleNotInstalled: 'The pos_kot_print module is not installed on this Odoo server.',
+    kotModuleNotInstalled: 'The pos_payment_pin module is not installed on this Odoo server.',
     printError: 'Print Error',
 
     // Device Setup
@@ -612,7 +612,7 @@ const translations = {
     kotPrinted: 'تمت طباعة تذكرة المطبخ',
     kotSentToPrinter: 'تم إرسال تذكرة المطبخ إلى الطابعة.',
     moduleNotInstalled: 'الوحدة غير مثبتة',
-    kotModuleNotInstalled: 'وحدة pos_kot_print غير مثبتة على هذا الخادم.',
+    kotModuleNotInstalled: 'وحدة pos_payment_pin غير مثبتة على هذا الخادم.',
     printError: 'خطأ في الطباعة',
 
     // Device Setup

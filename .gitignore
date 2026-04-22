@@ -8,6 +8,17 @@ node_modules/
 dist/
 web-build/
 
+# Prebuild / native projects (generated from app.json + config plugins)
+android/
+ios/
+
+# Odoo module build artifacts
+odoo_module/*.zip
+
+# Python bytecode inside odoo modules
+**/__pycache__/
+*.pyc
+
 # Native
 *.orig.*
 *.jks

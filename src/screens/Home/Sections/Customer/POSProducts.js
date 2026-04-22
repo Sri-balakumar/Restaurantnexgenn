@@ -18,7 +18,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AntDesign } from '@expo/vector-icons';
 import { Button } from '@components/common/Button';
 import useKitchenTickets from '@stores/kitchen/ticketsStore';
-import { useTranslation } from '@hooks';
+import { useTranslation, usePressOnce } from '@hooks';
+import { loadPosConfig } from '@api/services/kotService';
 
 // Helper: build Odoo headers from AsyncStorage (same as generalApi._buildOdooHeaders)
 const _buildOdooHeadersLocal = async () => {
@@ -304,6 +305,22 @@ const localStyles = RNStyleSheet.create({
     color: '#8896ab',
     fontWeight: '700',
   },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  breakdownLabel: {
+    fontSize: 13,
+    color: '#8896ab',
+    fontWeight: '600',
+  },
+  breakdownValue: {
+    fontSize: 13,
+    color: '#1a1a2e',
+    fontWeight: '700',
+  },
   totalValue: {
     fontSize: 26,
     fontWeight: '900',
@@ -354,6 +371,18 @@ const localStyles = RNStyleSheet.create({
     }),
   },
   payNowBtnText: { color: '#fff', fontWeight: '900', fontSize: 16, letterSpacing: 0.3 },
+
+  // PIN gate modal
+  pinOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  pinCard: { backgroundColor: '#fff', borderRadius: 16, padding: 22, width: '100%', maxWidth: 380 },
+  pinHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  pinTitle: { fontSize: 16, fontWeight: '800', color: '#2E294E' },
+  pinClose: { fontSize: 20, color: '#888', padding: 4 },
+  pinHint: { fontSize: 13, color: '#555', marginBottom: 14 },
+  pinInput: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, fontSize: 16, color: '#2E294E', marginBottom: 8 },
+  pinErrText: { color: '#e53935', fontSize: 12, marginBottom: 8 },
+  pinSubmitBtn: { backgroundColor: '#2E294E', borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 6 },
+  pinSubmitText: { color: '#fff', fontSize: 15, fontWeight: '800' },
 
   // Payment modal
   payModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
@@ -466,6 +495,28 @@ const POSProducts = ({ navigation, route }) => {
   const [payInputAmount, setPayInputAmount] = useState('');
   const [paying, setPaying] = useState(false);
   const [payMethods, setPayMethods] = useState([]);
+  // PIN gate for Pay Now — unlocks after correct PIN, stays unlocked for the session.
+  // PIN source of truth is Odoo pos.config.payment_pin (set per-POS by the admin).
+  // Empty/missing payment_pin in Odoo => gate is disabled (no PIN required).
+  const [payUnlocked, setPayUnlocked] = useState(false);
+  const [pinModalVisible, setPinModalVisible] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState(false);
+  const [expectedPin, setExpectedPin] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const storedId = await AsyncStorage.getItem('pos_config_id');
+        // Force a fresh re-fetch so a PIN set in Odoo after login is picked up
+        // without the user having to log out and back in.
+        const cfg = await loadPosConfig(storedId ? Number(storedId) : null);
+        const pin = String(cfg?.payment_pin || '').trim();
+        setExpectedPin(pin);
+        if (!pin) setPayUnlocked(true); // No PIN configured in Odoo — skip the gate.
+      } catch (_) {}
+    })();
+  }, []);
 
   // Discount state
   const [discountModalVisible, setDiscountModalVisible] = useState(false);
@@ -478,6 +529,7 @@ const POSProducts = ({ navigation, route }) => {
   const activePricelistRef = useRef(null);
   const [pricelistItems, setPricelistItems] = useState({});
   const pricelistItemsRef = useRef({});
+  const [taxRateMap, setTaxRateMap] = useState({}); // { taxId: amount (percent) }
   const [noteText, setNoteText] = useState('');
   const pendingSyncs = useRef([]);  // Track pending addLine API calls
   const initialLoadDone = useRef(false);  // Track if initial server load is complete
@@ -605,6 +657,13 @@ const POSProducts = ({ navigation, route }) => {
     setKotSelectedTime(null);
     setKotSelectedDate(null);
 
+    // Dine-In orders skip order name & time slot wizard
+    const isTakeaway = String(baseParams?.order_type || route?.params?.order_type || '').toUpperCase() === 'TAKEAWAY';
+    if (!isTakeaway) {
+      navigation.navigate('KitchenBillPreview', { ...baseParams });
+      return;
+    }
+
     // Fetch preset schedule from Odoo
     const presetId = route?.params?.preset_id || 10;
     try {
@@ -729,10 +788,10 @@ const POSProducts = ({ navigation, route }) => {
             }
           });
 
-          // Fetch all products to map product_id → tmpl_id + lst_price
+          // Fetch all products to map product_id → tmpl_id + lst_price + taxes_id
           const allProdResp = await fetch(`${baseUrl}/web/dataset/call_kw`, {
             method: 'POST', headers,
-            body: JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { model: 'product.product', method: 'search_read', args: [[]], kwargs: { fields: ['id', 'product_tmpl_id', 'lst_price', 'list_price'], limit: 5000 } } }),
+            body: JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { model: 'product.product', method: 'search_read', args: [[]], kwargs: { fields: ['id', 'product_tmpl_id', 'lst_price', 'list_price', 'taxes_id'], limit: 5000 } } }),
           });
           const allProdData = await allProdResp.json();
           const allProds = allProdData?.result || [];
@@ -741,12 +800,27 @@ const POSProducts = ({ navigation, route }) => {
             prodMap[p.id] = {
               tmplId: Array.isArray(p.product_tmpl_id) ? p.product_tmpl_id[0] : p.product_tmpl_id,
               lstPrice: p.lst_price || p.list_price || 0,
+              taxesId: Array.isArray(p.taxes_id) ? p.taxes_id : [],
             };
           });
 
           const plData2 = { _cache: cache, _prodMap: prodMap };
           setPricelistItems(plData2);
           pricelistItemsRef.current = plData2;
+
+          // Fetch all account.tax rates for per-product tax-inclusive display
+          try {
+            const taxResp = await fetch(`${baseUrl}/web/dataset/call_kw`, {
+              method: 'POST', headers,
+              body: JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { model: 'account.tax', method: 'search_read', args: [[]], kwargs: { fields: ['id', 'amount', 'price_include'], limit: 500 } } }),
+            });
+            const taxData = await taxResp.json();
+            const taxMap = {};
+            (taxData?.result || []).forEach(t => {
+              taxMap[t.id] = { amount: Number(t.amount) || 0, priceInclude: !!t.price_include };
+            });
+            setTaxRateMap(taxMap);
+          } catch (_) {}
         } catch (_) {}
       } catch (_) {}
     })();
@@ -828,7 +902,7 @@ const POSProducts = ({ navigation, route }) => {
     try {
       const { baseUrl, headers } = await _buildOdooHeadersLocal();
 
-      const totalAmt = cartItems.reduce((s, it) => s + (Number(it.quantity ?? it.qty ?? 1) * Number(it.price_unit ?? it.price ?? 0)), 0);
+      const totalAmt = computeCartTotal(cartItems);
       const selectedMethod = payMethods.find(m => m.id === selectedPayMethodId);
       const isCash = selectedMethod?.is_cash_count || String(selectedMethod?.name || '').toLowerCase().includes('cash');
       const paidAmt = isCash ? (parseFloat(payInputAmount) || totalAmt) : totalAmt;
@@ -900,7 +974,7 @@ const POSProducts = ({ navigation, route }) => {
     } finally {
       setPaying(false);
     }
-  }, [sessionId, selectedPayMethodId, payInputAmount, payMethods, route?.params?.order_type, navigation, t, clearProducts]);
+  }, [sessionId, selectedPayMethodId, payInputAmount, payMethods, route?.params?.order_type, navigation, t, clearProducts, taxRateMap]);
 
   // Helper: get Odoo line ID from item (handles both odoo_line_ prefixed and raw IDs)
   const getOdooLineId = useCallback(async (item) => {
@@ -1320,16 +1394,39 @@ const POSProducts = ({ navigation, route }) => {
 
   // Products to display — uses debounced search so filtering doesn't block touch events
   const productsToShow = useMemo(() => {
-    const base = posFilteredProducts !== null ? posFilteredProducts : (allCachedProducts || []);
+    const baseList = posFilteredProducts !== null ? posFilteredProducts : (allCachedProducts || []);
+    let filtered = baseList;
     if (debouncedSearch && String(debouncedSearch).trim()) {
       const q = String(debouncedSearch).toLowerCase();
-      return Array.isArray(base) ? base.filter(p => {
+      filtered = Array.isArray(baseList) ? baseList.filter(p => {
         const name = String(p.product_name || p.name || '').toLowerCase();
         return name.includes(q);
-      }) : base;
+      }) : baseList;
     }
-    return base;
-  }, [posFilteredProducts, allCachedProducts, debouncedSearch]);
+
+    // Match Odoo POS cart display: pricelist fixed_price (if any) → else list_price,
+    // then add each product's own tax on top (skipping taxes marked price_include).
+    const plCache = pricelistItems?._cache?.[activePricelistId] || null;
+    const prodMap = pricelistItems?._prodMap || null;
+
+    return (Array.isArray(filtered) ? filtered : []).map(p => {
+      const listP = Number(p.list_price ?? p.price ?? 0);
+      let base = listP;
+      if (plCache && prodMap) {
+        const info = prodMap[p.id];
+        const plPrice = info?.tmplId !== undefined ? plCache[info.tmplId] : undefined;
+        if (plPrice !== undefined) base = Number(plPrice);
+      }
+      const taxIds = Array.isArray(p.taxes_id) ? p.taxes_id : [];
+      let addOn = 0;
+      taxIds.forEach(tid => {
+        const t = taxRateMap[tid];
+        if (t && !t.priceInclude) addOn += t.amount;
+      });
+      const displayPrice = Math.round(base * (1 + addOn / 100) * 1000) / 1000;
+      return { ...p, displayPrice };
+    });
+  }, [posFilteredProducts, allCachedProducts, debouncedSearch, taxRateMap, activePricelistId, pricelistItems]);
 
   // Helper: ensure an orderId exists — creates the draft order lazily for takeaway
   const ensureOrderId = useCallback(async () => {
@@ -1384,6 +1481,7 @@ const POSProducts = ({ navigation, route }) => {
         price_unit: productPrice,
         quantity: qtyOverride,
         imageUrl: p.imageUrl || p.image_url || p.image || '',
+        taxes_id: Array.isArray(p.taxes_id) ? p.taxes_id : [],
         note: note.trim(),
       };
       addProduct(product);
@@ -1430,6 +1528,7 @@ const POSProducts = ({ navigation, route }) => {
           price_unit: productPrice,
           quantity: qtyOverride,
           imageUrl: p.imageUrl || p.image_url || p.image || '',
+          taxes_id: Array.isArray(p.taxes_id) ? p.taxes_id : [],
         };
         addProduct(product);
 
@@ -1460,7 +1559,7 @@ const POSProducts = ({ navigation, route }) => {
     setQuickAddVisible(true);
   }, []);
 
-  const confirmQuickAdd = useCallback(() => {
+  const _doConfirmQuickAdd = useCallback(() => {
     if (!quickProduct) return;
     const addedName = quickProduct.product_name || quickProduct.name || 'Product';
     const addedQty = quickQty;
@@ -1476,6 +1575,7 @@ const POSProducts = ({ navigation, route }) => {
     InteractionManager.runAfterInteractions(() => handleAdd(prodToAdd, addedQty, addedNote));
     setTimeout(() => setConfirmVisible(false), 1000);
   }, [quickProduct, quickQty, quickNote, handleAdd]);
+  const confirmQuickAdd = usePressOnce(_doConfirmQuickAdd);
 
   const handleViewCart = useCallback(() => {
     // Sync with server before showing cart
@@ -1505,7 +1605,7 @@ const POSProducts = ({ navigation, route }) => {
   const renderOrderLine = ({ item, index }) => {
     const qty = Number(item.qty ?? item.quantity ?? 1);
     const unit = Number(item.price_unit ?? item.price ?? 0);
-    const subtotal = qty * unit;
+    const subtotal = computeLineTotal(item);
 
     const handleIncrease = async () => {
       const newQty = qty + 1;
@@ -1609,14 +1709,113 @@ const POSProducts = ({ navigation, route }) => {
     );
   };
 
+  const onKitchenBillPress = usePressOnce(async () => {
+    const cartItems = useProductStore.getState().cartItems[useProductStore.getState().currentCustomerId] || [];
+    console.log('[KitchenBill] button pressed, order_type=', route?.params?.order_type, 'cartItems=', cartItems.length);
+    if (pendingSyncs.current.length > 0) {
+      try { await Promise.all(pendingSyncs.current); } catch (_) {}
+    }
+    const orderId = orderIdRef.current || orderInfo?.id;
+    const baseParams = {
+      orderId, orderName: orderInfo?.name || '', tableName: orderInfo?.table_id?.[1] || '',
+      serverName: route?.params?.userName || '', items: cartItems,
+      cartOwner: route?.params?.cartOwner || (orderId ? `order_${orderId}` : 'pos_guest'),
+      order_type: route?.params?.order_type,
+      sessionId,
+      userId,
+    };
+    console.log('[KitchenBill] calling openKotWizard with orderId=', orderId, 'tableName=', baseParams.tableName);
+    openKotWizard(baseParams);
+  });
+
+  const onPayNowPress = usePressOnce(() => {
+    if (!payUnlocked) {
+      setPinInput('');
+      setPinError(false);
+      setPinModalVisible(true);
+      return;
+    }
+    const cartItems = useProductStore.getState().cartItems[useProductStore.getState().currentCustomerId] || [];
+    const totalAmt = computeCartTotal(cartItems);
+    setPayInputAmount(totalAmt.toFixed(3));
+    setPayModalVisible(true);
+  });
+
+  const submitPin = () => {
+    if (expectedPin && pinInput === expectedPin) {
+      setPayUnlocked(true);
+      setPinModalVisible(false);
+      setPinInput('');
+      setPinError(false);
+      // Open the payment method popup immediately — user shouldn't have to tap Pay Now again.
+      const cartItems = useProductStore.getState().cartItems[useProductStore.getState().currentCustomerId] || [];
+      const totalAmt = computeCartTotal(cartItems);
+      setPayInputAmount(totalAmt.toFixed(3));
+      setPayModalVisible(true);
+    } else {
+      setPinError(true);
+    }
+  };
+
+  const onPayConfirmPress = usePressOnce(async () => {
+    const cartItems = useProductStore.getState().cartItems[useProductStore.getState().currentCustomerId] || [];
+    await handlePayNow(cartItems);
+  });
+
+  const computeLineTotal = useCallback((it) => {
+    const itQty = Number(it.quantity ?? it.qty ?? 1);
+    const itUnit = Number(it.price_unit ?? it.price ?? 0);
+    const net = itQty * itUnit;
+
+    // Resolve taxes_id: prefer what's stored on the cart item, fall back to the
+    // product catalog lookup (for server-loaded orders where the line doesn't
+    // carry taxes_id).
+    let taxIds = Array.isArray(it.taxes_id) ? it.taxes_id : null;
+    if (!taxIds || taxIds.length === 0) {
+      const pid = it.remoteId || (typeof it.id === 'number' ? it.id : null);
+      const prodInfo = pid ? pricelistItems?._prodMap?.[pid] : null;
+      if (prodInfo && Array.isArray(prodInfo.taxesId)) taxIds = prodInfo.taxesId;
+    }
+    taxIds = taxIds || [];
+
+    let addOn = 0;
+    taxIds.forEach(tid => {
+      const t = taxRateMap[tid];
+      if (t && !t.priceInclude) addOn += t.amount;
+    });
+    return Math.round(net * (1 + addOn / 100) * 1000) / 1000;
+  }, [taxRateMap, pricelistItems]);
+
+  const computeCartTotal = useCallback((items) => {
+    return (items || []).reduce((s, it) => s + computeLineTotal(it), 0);
+  }, [computeLineTotal]);
+
+  // Break the cart total into subtotal (net) + tax so the register can show both.
+  const computeCartBreakdown = useCallback((items) => {
+    let subtotal = 0;
+    let total = 0;
+    (items || []).forEach(it => {
+      const lineTotal = computeLineTotal(it);
+      total += lineTotal;
+
+      // Subtotal per line: prefer Odoo's price_subtotal (net), else qty * unit.
+      if (it.price_subtotal !== undefined && it.price_subtotal !== null) {
+        subtotal += Number(it.price_subtotal) || 0;
+      } else {
+        const qty = Number(it.quantity ?? it.qty ?? 1);
+        const unit = Number(it.price_unit ?? it.price ?? 0);
+        subtotal += qty * unit;
+      }
+    });
+    subtotal = Math.round(subtotal * 1000) / 1000;
+    total = Math.round(total * 1000) / 1000;
+    const tax = Math.round((total - subtotal) * 1000) / 1000;
+    return { subtotal, tax, total };
+  }, [computeLineTotal]);
+
   const renderRegisterPanel = () => {
     const cartItems = useProductStore((s) => s.getCurrentCart()) || [];
-    const total = cartItems.reduce((s, it) => {
-      const itQty = Number(it.quantity ?? it.qty ?? 1);
-      const itUnit = Number(it.price_unit ?? it.price ?? 0);
-      const lineTotal = itQty * itUnit;
-      return s + lineTotal;
-    }, 0);
+    const { subtotal, tax, total } = computeCartBreakdown(cartItems);
 
     return (
       <View style={localStyles.registerPanel}>
@@ -1684,8 +1883,18 @@ const POSProducts = ({ navigation, route }) => {
           />
         </View>
 
-        {/* Total */}
+        {/* Subtotal + Taxes + Total breakdown */}
         <View style={localStyles.totalSection}>
+          <View style={localStyles.breakdownRow}>
+            <Text style={localStyles.breakdownLabel}>Subtotal</Text>
+            <Text style={localStyles.breakdownValue}>{formatCurrency(subtotal)}</Text>
+          </View>
+          {tax > 0 && (
+            <View style={localStyles.breakdownRow}>
+              <Text style={localStyles.breakdownLabel}>Taxes</Text>
+              <Text style={localStyles.breakdownValue}>{formatCurrency(tax)}</Text>
+            </View>
+          )}
           <View style={localStyles.totalRow}>
             <Text style={localStyles.totalLabel}>{t.total}</Text>
             <Text style={localStyles.totalValue}>{formatCurrency(total)}</Text>
@@ -1695,40 +1904,19 @@ const POSProducts = ({ navigation, route }) => {
         {/* Bottom action — hidden for paid/closed orders */}
         {!isOrderClosed && (
         <View style={localStyles.bottomActions}>
-          <TouchableOpacity disabled={cartItems.length === 0} onPress={async () => {
-            console.log('[KitchenBill] button pressed, order_type=', route?.params?.order_type, 'cartItems=', cartItems.length);
-            // Wait for all pending add-line API calls to complete before navigating
-            if (pendingSyncs.current.length > 0) {
-              try { await Promise.all(pendingSyncs.current); } catch (_) {}
-            }
-            const orderId = orderIdRef.current || orderInfo?.id;
-            const baseParams = {
-              orderId, orderName: orderInfo?.name || '', tableName: orderInfo?.table_id?.[1] || '',
-              serverName: route?.params?.userName || '', items: cartItems,
-              cartOwner: route?.params?.cartOwner || (orderId ? `order_${orderId}` : 'pos_guest'),
-              order_type: route?.params?.order_type,
-              sessionId,
-              userId,
-            };
-            console.log('[KitchenBill] calling openKotWizard with orderId=', orderId, 'tableName=', baseParams.tableName);
-            openKotWizard(baseParams);
-          }} style={[localStyles.kitchenBillBtn, cartItems.length === 0 && { opacity: 0.4 }]}>
+          <TouchableOpacity disabled={cartItems.length === 0} onPress={onKitchenBillPress} style={[localStyles.kitchenBillBtn, cartItems.length === 0 && { opacity: 0.4 }]}>
             <Text style={localStyles.kitchenBillBtnText}>{t.kitchenBill}</Text>
           </TouchableOpacity>
 
-          {/* Payment Button */}
+          {/* Payment Button — locked behind PIN until unlocked for the session */}
           <TouchableOpacity
             disabled={cartItems.length === 0}
-            onPress={() => {
-              const totalAmt = cartItems.reduce((s, it) => s + (Number(it.quantity ?? it.qty ?? 1) * Number(it.price_unit ?? it.price ?? 0)), 0);
-              setPayInputAmount(totalAmt.toFixed(3));
-              setPayModalVisible(true);
-            }}
+            onPress={onPayNowPress}
             style={[localStyles.payNowBtn, cartItems.length === 0 && { opacity: 0.4 }]}
             activeOpacity={0.85}
           >
             <Text style={localStyles.payNowBtnText}>
-              {t.payNow}  💰  {formatCurrency(cartItems.reduce((s, it) => s + (Number(it.quantity ?? it.qty ?? 1) * Number(it.price_unit ?? it.price ?? 0)), 0))}
+              {payUnlocked ? '✅' : '🔒'}  {t.payNow}  💰  {formatCurrency(computeCartTotal(cartItems))}
             </Text>
           </TouchableOpacity>
         </View>
@@ -1892,6 +2080,36 @@ const POSProducts = ({ navigation, route }) => {
         </Modal>
       </View>
 
+      {/* ── PIN Gate Modal ───────────────────────────────────── */}
+      <Modal visible={pinModalVisible} transparent animationType="fade" onRequestClose={() => setPinModalVisible(false)}>
+        <View style={localStyles.pinOverlay}>
+          <View style={localStyles.pinCard}>
+            <View style={localStyles.pinHeader}>
+              <Text style={localStyles.pinTitle}>🔒  Enter Payment PIN</Text>
+              <TouchableOpacity onPress={() => setPinModalVisible(false)}>
+                <Text style={localStyles.pinClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={localStyles.pinHint}>Enter the PIN to unlock payments for this session.</Text>
+            <TextInput
+              style={[localStyles.pinInput, pinError && { borderColor: '#e53935' }]}
+              value={pinInput}
+              onChangeText={(v) => { setPinInput(v); if (pinError) setPinError(false); }}
+              placeholder="PIN"
+              placeholderTextColor="#bbb"
+              secureTextEntry
+              autoFocus
+              onSubmitEditing={submitPin}
+              returnKeyType="done"
+            />
+            {pinError && <Text style={localStyles.pinErrText}>Incorrect PIN. Try again.</Text>}
+            <TouchableOpacity style={localStyles.pinSubmitBtn} onPress={submitPin} activeOpacity={0.85}>
+              <Text style={localStyles.pinSubmitText}>Unlock</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* ── Payment Modal ─────────────────────────────────────── */}
       <Modal visible={payModalVisible} transparent animationType="slide" onRequestClose={() => setPayModalVisible(false)}>
         <View style={localStyles.payModalOverlay}>
@@ -1905,14 +2123,26 @@ const POSProducts = ({ navigation, route }) => {
 
             {(() => {
               const cartItems = useProductStore.getState().cartItems[useProductStore.getState().currentCustomerId] || [];
-              const totalAmt = cartItems.reduce((s, it) => s + (Number(it.quantity ?? it.qty ?? 1) * Number(it.price_unit ?? it.price ?? 0)), 0);
+              const { subtotal: subAmt, tax: taxAmt, total: totalAmt } = computeCartBreakdown(cartItems);
               const paidNum = parseFloat(payInputAmount) || 0;
               const changeAmt = paidNum - totalAmt;
 
               return (
                 <>
                   <View style={localStyles.payTotalBox}>
-                    <Text style={localStyles.payTotalLabel}>{t.orderTotal}</Text>
+                    <View style={{ width: '100%' }}>
+                      <View style={localStyles.breakdownRow}>
+                        <Text style={localStyles.breakdownLabel}>Subtotal</Text>
+                        <Text style={localStyles.breakdownValue}>{formatCurrency(subAmt)}</Text>
+                      </View>
+                      {taxAmt > 0 && (
+                        <View style={localStyles.breakdownRow}>
+                          <Text style={localStyles.breakdownLabel}>Taxes</Text>
+                          <Text style={localStyles.breakdownValue}>{formatCurrency(taxAmt)}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={[localStyles.payTotalLabel, { marginTop: 8 }]}>{t.orderTotal}</Text>
                     <Text style={localStyles.payTotalValue}>{formatCurrency(totalAmt)}</Text>
                   </View>
 
@@ -1963,7 +2193,7 @@ const POSProducts = ({ navigation, route }) => {
 
                   <TouchableOpacity
                     style={[localStyles.payConfirmBtn, paying && { opacity: 0.7 }]}
-                    onPress={() => handlePayNow(cartItems)}
+                    onPress={onPayConfirmPress}
                     disabled={paying || !selectedPayMethodId || (() => {
                       const selMethod = payMethods.find(m => m.id === selectedPayMethodId);
                       const isCashMethod = selMethod?.is_cash_count || String(selMethod?.name || '').toLowerCase().includes('cash');
