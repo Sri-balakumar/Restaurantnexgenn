@@ -24,6 +24,12 @@ class PosConfig(models.Model):
         default='http://localhost:5123',
         help='URL of the local print agent (print_agent.py) running on client PC'
     )
+    payment_pin = fields.Char(
+        string='Payment PIN',
+        default='',
+        help='PIN required on the mobile POS app before opening the payment screen. '
+             'Leave empty to disable the PIN gate for this POS.'
+    )
 
 
 class PosSession(models.Model):
@@ -36,5 +42,6 @@ class PosSession(models.Model):
             'kot_printer_port',
             'kot_use_print_agent',
             'kot_agent_url',
+            'payment_pin',
         ])
         return result

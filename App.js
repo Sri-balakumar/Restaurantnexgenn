@@ -12,6 +12,10 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import StackNavigator from '@navigation/StackNavigator';
 import { Provider } from 'react-native-paper';
 import * as Font from 'expo-font';
+import { NetworkErrorModal } from '@components/NetworkError';
+import { installNetworkInterceptor } from '@api/utils/networkInterceptor';
+
+installNetworkInterceptor();
 
 LogBox.ignoreAllLogs();
 
@@ -60,6 +64,7 @@ export default function App() {
               <StackNavigator />
             </BottomSheetModalProvider>
             <Toast config={CustomToast} />
+            <NetworkErrorModal />
           </SafeAreaProvider>
         </NavigationContainer>
       </Provider>

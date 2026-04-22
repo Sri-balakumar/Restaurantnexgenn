@@ -4,9 +4,10 @@ import useDropdownFetching from "./useDropdownFetching";
 import useLoader from "./useLoader";
 import usePosLogo from "./usePosLogo";
 import useTranslation from "./useTranslation";
+import usePressOnce from "./usePressOnce";
 
 
-export { useDataFetching, useDebouncedSearch, useDropdownFetching, useLoader, usePosLogo, useTranslation }
+export { useDataFetching, useDebouncedSearch, useDropdownFetching, useLoader, usePosLogo, useTranslation, usePressOnce }
 
 // refere link https://chat.openai.com/share/31472e8c-484e-4ed5-aa04-cd410983964a
 

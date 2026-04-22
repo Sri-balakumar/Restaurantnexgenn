@@ -67,14 +67,14 @@ export const preloadAllProducts = async () => {
   let allProducts;
   try {
     // Odoo 16+: only pos_categ_ids (Many2many) exists
-    allProducts = await doFetch(['id', 'name', 'pos_categ_ids', 'list_price', 'default_code', 'image_128']);
+    allProducts = await doFetch(['id', 'name', 'pos_categ_ids', 'list_price', 'taxes_id', 'default_code', 'image_128']);
   } catch (e1) {
     try {
       // Odoo 13-15: only pos_categ_id (Many2one) exists
-      allProducts = await doFetch(['id', 'name', 'pos_categ_id', 'list_price', 'default_code', 'image_128']);
+      allProducts = await doFetch(['id', 'name', 'pos_categ_id', 'list_price', 'taxes_id', 'default_code', 'image_128']);
     } catch (e2) {
       // Neither field exists — get products without category info
-      allProducts = await doFetch(['id', 'name', 'list_price', 'default_code', 'image_128']);
+      allProducts = await doFetch(['id', 'name', 'list_price', 'taxes_id', 'default_code', 'image_128']);
     }
   }
 

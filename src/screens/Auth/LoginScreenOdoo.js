@@ -27,6 +27,7 @@ import { showToastMessage } from "@components/Toast";
 import API_BASE_URL from "@api/config";
 import ODOO_DEFAULTS, { DEFAULT_ODOO_BASE_URL, DEFAULT_ODOO_DB, DEV_ODOO_USERNAME, DEV_ODOO_PASSWORD } from "@api/config/odooConfig";
 import { clearProductCache } from "@api/services/generalApi";
+import { loadPosConfig } from "@api/services/kotService";
 import { useTranslation } from "@hooks";
 import { useLanguageStore } from "@stores/language";
 
@@ -148,6 +149,12 @@ const LoginScreenOdoo = () => {
           if (Array.isArray(configs) && configs.length > 0) {
             await AsyncStorage.setItem('pos_config_id', String(configs[0].id));
           }
+        } catch (_) {}
+
+        // Prime KOT printer settings (kot_printer_ip/port) for this session
+        try {
+          const storedId = await AsyncStorage.getItem('pos_config_id');
+          await loadPosConfig(storedId ? Number(storedId) : null);
         } catch (_) {}
 
         // Always save credentials so Autofill can use them next time

@@ -53,7 +53,7 @@ async function getConnectionInfo() {
 
 // ── Odoo RPC call via session ────────────────────────────────
 
-async function callKw(model, method, args = [[]], kwargs = {}) {
+export async function callKw(model, method, args = [[]], kwargs = {}) {
   const { base, headers } = await getConnectionInfo();
 
   const url = `${base}/web/dataset/call_kw`;
@@ -92,31 +92,41 @@ async function callKw(model, method, args = [[]], kwargs = {}) {
 }
 
 // ── Fetch POS Config (printer settings from Odoo) ───────────
+// Loaded once at login via loadPosConfig() and cached for the session.
+// Cleared on logout via clearPosConfigCache().
 
 let _posConfigCache = null;
 
-async function getPosConfig(configId) {
-  if (_posConfigCache) return _posConfigCache;
-
+async function _fetchPosConfig(configId) {
   try {
     const configs = await callKw(
       'pos.config',
       'search_read',
       [configId ? [['id', '=', configId]] : []],
       {
-        fields: ['id', 'kot_printer_ip', 'kot_printer_port', 'kot_use_print_agent', 'kot_agent_url'],
+        fields: ['id', 'kot_printer_ip', 'kot_printer_port', 'kot_use_print_agent', 'kot_agent_url', 'payment_pin'],
         limit: 1,
       },
     );
     if (configs && configs.length) {
-      _posConfigCache = configs[0];
-      console.log('[KOT] POS config loaded:', JSON.stringify(_posConfigCache));
-      return _posConfigCache;
+      console.log('[KOT] POS config loaded:', JSON.stringify(configs[0]));
+      return configs[0];
     }
   } catch (error) {
     console.warn('[KOT] Failed to load POS config:', error.message);
   }
   return null;
+}
+
+async function getPosConfig(configId) {
+  if (_posConfigCache) return _posConfigCache;
+  _posConfigCache = await _fetchPosConfig(configId);
+  return _posConfigCache;
+}
+
+export async function loadPosConfig(configId) {
+  _posConfigCache = await _fetchPosConfig(configId);
+  return _posConfigCache;
 }
 
 export function clearPosConfigCache() {
@@ -289,6 +299,7 @@ export async function addLineToOrder({ orderId, productId, qty, price_unit }) {
 export default {
   printKot,
   getPosConfig,
+  loadPosConfig,
   clearPosConfigCache,
   getTables,
   getProducts,

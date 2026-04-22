@@ -53,8 +53,27 @@ const ChooseOrderType = ({ navigation, route }) => {
         }
       } catch (e) {}
 
-      // Don't create draft order yet — POSProducts will create it when first product is added
-      navigation.navigate('POSProducts', { ...params, orderId: null, preset, preset_id, cartOwner: 'takeaway_new', order_type: 'TAKEAWAY' });
+      // Always create a brand-new draft order so the cart starts empty.
+      const created = await createDraftPosOrderOdoo({
+        sessionId: params.sessionId,
+        userId: params.userId,
+        tableId: false,
+        preset_id,
+        order_type: 'TAKEAWAY',
+      });
+      if (!created || created.error || !created.result) {
+        throw new Error(created?.error?.data?.message || created?.error?.message || 'Failed to create takeaway order');
+      }
+      const newOrderId = created.result;
+
+      navigation.navigate('POSProducts', {
+        ...params,
+        orderId: newOrderId,
+        preset,
+        preset_id,
+        cartOwner: `order_${newOrderId}`,
+        order_type: 'TAKEAWAY',
+      });
     } catch (err) {
       console.error('goTakeaway error', err);
       Alert.alert(t.error, err?.message || t.failedToStartTakeaway);

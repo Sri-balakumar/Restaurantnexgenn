@@ -17,6 +17,9 @@
                                invisible="not kot_use_print_agent"/>
                     </group>
                 </group>
+                <group string="Mobile POS — Payment PIN">
+                    <field name="payment_pin" password="True" placeholder="Leave empty to disable PIN"/>
+                </group>
             </xpath>
         </field>
     </record>
