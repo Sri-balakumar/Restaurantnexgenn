@@ -1196,8 +1196,11 @@ const POSProducts = ({ navigation, route }) => {
 
   // Load order from server — ONLY when local cart is empty (first open of this table)
   // Once items exist in local cart, NEVER overwrite them with server data
-  const refreshServerOrder = useCallback(async (orderId) => {
+  const refreshServerOrder = useCallback(async (orderId, { force = false } = {}) => {
     if (!orderId) return;
+    // Don't poll while an add/update is still in flight — reading a
+    // half-written server order would clobber the just-added local item.
+    if (!force && pendingSyncs.current.length > 0) return;
     const cartOwner = `order_${orderId}`;
     setCurrentCustomer(cartOwner);
 
@@ -1218,7 +1221,11 @@ const POSProducts = ({ navigation, route }) => {
         }
         const lineIds = orderResp?.result?.lines ?? [];
         if (lineIds.length === 0) {
-          // Server has no lines anymore — clear local cart for this order.
+          // Server has no lines. Only clear if nothing local is still
+          // un-synced — otherwise we'd wipe a line the server hasn't
+          // registered yet (just-added item still settling).
+          const hasUnsyncedLocal = localCart.some(it => !String(it.id).startsWith('odoo_line_'));
+          if (hasUnsyncedLocal || pendingSyncs.current.length > 0) return;
           loadCustomerCart(cartOwner, []);
           return;
         }
@@ -1239,10 +1246,12 @@ const POSProducts = ({ navigation, route }) => {
         };
 
         // For each server line: build the merged cart row
-        const mergedCart = serverLines.map(sl => {
+        const consumedLocalKeys = new Set();
+        const serverRows = serverLines.map(sl => {
           const local = matchLocalForServerLine(sl);
           const mappedFromServer = mapLineToProduct(sl);
           if (local) {
+            consumedLocalKeys.add(local.id);
             // Preserve local item identity, overlay server's discount/note/price
             const serverDiscount = Number(sl.discount || 0);
             const serverNote = sl.customer_note || '';
@@ -1266,7 +1275,13 @@ const POSProducts = ({ navigation, route }) => {
           // No matching local — this is a NEW item from another terminal.
           return mappedFromServer;
         });
-        loadCustomerCart(cartOwner, mergedCart);
+        // Union: keep local-only items the server hasn't surfaced yet (a
+        // just-added item whose line write is still settling), so they don't
+        // vanish. An `odoo_line_` row absent from this fetch is a genuine
+        // remote delete → drop it (not carried here).
+        const localOnlyRows = localCart.filter(it =>
+          !consumedLocalKeys.has(it.id) && !String(it.id).startsWith('odoo_line_'));
+        loadCustomerCart(cartOwner, [...serverRows, ...localOnlyRows]);
       } catch (_) {}
       return;
     }
@@ -1527,6 +1542,12 @@ const POSProducts = ({ navigation, route }) => {
     const productName = p.product_name || p.name || p.display_name || p.full_product_name || `Product #${p.id}`;
     let productPrice = p.price || p.list_price || 0;
 
+    // Odoo order lines need the product.product (variant) id, NOT the
+    // product.template id (p.id). Use p.variantId; fall back to p.id only if
+    // it's missing (older cache / multi-variant), and warn so it's diagnosable.
+    const productIdForOdoo = p.variantId || p.id;
+    if (!p.variantId) console.warn('[handleAdd] no variantId for', p.id, productName, '- falling back to template id');
+
     // Use cached pricelist price for the active pricelist (instant, no API)
     const currentPlId = activePricelistRef.current;
     const plRef = pricelistItemsRef.current;
@@ -1545,7 +1566,8 @@ const POSProducts = ({ navigation, route }) => {
       const uniqueId = `${p.id}_${Date.now()}`;
       const product = {
         id: uniqueId,
-        remoteId: p.id,
+        remoteId: productIdForOdoo,
+        product_id: productIdForOdoo,
         name: productName,
         product_name: productName,
         price: productPrice,
@@ -1558,7 +1580,8 @@ const POSProducts = ({ navigation, route }) => {
       addProduct(product);
 
       ensureOrderId().then(orderId => {
-        const promise = addLineToOrderOdoo({ orderId, productId: p.id, qty: qtyOverride, price_unit: productPrice, name: productName, note: note.trim() })
+        const promise = addLineToOrderOdoo({ orderId, productId: productIdForOdoo, qty: qtyOverride, price_unit: productPrice, name: productName, note: note.trim() })
+          .then((res) => { if (res?.error) console.warn('[handleAdd] note line not saved', productIdForOdoo, res.error); return res; })
           .catch(() => Toast.show({ type: 'error', text1: 'Odoo Error', text2: 'Failed to sync with server' }))
           .finally(() => { pendingSyncs.current = pendingSyncs.current.filter(pr => pr !== promise); });
         pendingSyncs.current.push(promise);
@@ -1569,7 +1592,9 @@ const POSProducts = ({ navigation, route }) => {
       const existing = localCart.find(item => {
         if (item.note) return false; // Don't merge into items that have notes
         const itemProductId = item.remoteId || (typeof item.id === 'number' ? item.id : null);
-        return itemProductId === p.id;
+        // Match on the variant id (what remoteId now holds) — falls back to
+        // template id when the product has no variantId.
+        return itemProductId === productIdForOdoo;
       });
 
       if (existing) {
@@ -1584,7 +1609,8 @@ const POSProducts = ({ navigation, route }) => {
             .finally(() => { pendingSyncs.current = pendingSyncs.current.filter(pr => pr !== promise); });
           pendingSyncs.current.push(promise);
         } else if (orderId) {
-          const promise = addLineToOrderOdoo({ orderId, productId: p.id, qty: qtyOverride, price_unit: productPrice, name: productName })
+          const promise = addLineToOrderOdoo({ orderId, productId: productIdForOdoo, qty: qtyOverride, price_unit: productPrice, name: productName })
+            .then((res) => { if (res?.error) console.warn('[handleAdd] line not saved', productIdForOdoo, res.error); return res; })
             .catch(() => Toast.show({ type: 'error', text1: 'Odoo Error', text2: 'Failed to sync with server' }))
             .finally(() => { pendingSyncs.current = pendingSyncs.current.filter(pr => pr !== promise); });
           pendingSyncs.current.push(promise);
@@ -1592,7 +1618,8 @@ const POSProducts = ({ navigation, route }) => {
       } else {
         const product = {
           id: p.id,
-          remoteId: p.id,
+          remoteId: productIdForOdoo,
+          product_id: productIdForOdoo,
           name: productName,
           product_name: productName,
           price: productPrice,
@@ -1604,7 +1631,8 @@ const POSProducts = ({ navigation, route }) => {
         addProduct(product);
 
         ensureOrderId().then(orderId => {
-          const promise = addLineToOrderOdoo({ orderId, productId: p.id, qty: qtyOverride, price_unit: productPrice, name: productName })
+          const promise = addLineToOrderOdoo({ orderId, productId: productIdForOdoo, qty: qtyOverride, price_unit: productPrice, name: productName })
+            .then((res) => { if (res?.error) console.warn('[handleAdd] line not saved', productIdForOdoo, res.error); return res; })
             .catch(() => Toast.show({ type: 'error', text1: 'Odoo Error', text2: 'Failed to sync with server' }))
             .finally(() => { pendingSyncs.current = pendingSyncs.current.filter(pr => pr !== promise); });
           pendingSyncs.current.push(promise);
@@ -1648,11 +1676,13 @@ const POSProducts = ({ navigation, route }) => {
   }, [quickProduct, quickQty, quickNote, handleAdd]);
   const confirmQuickAdd = usePressOnce(_doConfirmQuickAdd);
 
-  const handleViewCart = useCallback(() => {
-    // Sync with server before showing cart
+  const handleViewCart = useCallback(async () => {
+    // Sync with server before showing cart — but wait for any pending adds
+    // first, then FORCE a refresh so the cart screen shows fresh server state.
     const orderId = orderIdRef.current;
     if (orderId) {
-      refreshServerOrder(orderId).catch(() => {});
+      try { await Promise.all(pendingSyncs.current); } catch (_) {}
+      await refreshServerOrder(orderId, { force: true }).catch(() => {});
     }
     navigation.navigate('POSCartSummary', { openingAmount, sessionId, registerId, registerName, userId, userName });
   }, [navigation, openingAmount, sessionId, registerId, registerName, userId, userName, refreshServerOrder]);

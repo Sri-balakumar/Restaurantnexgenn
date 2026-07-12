@@ -70,15 +70,17 @@ export const preloadAllProducts = async () => {
   // JSON over the wire and was the dominant cause of 15s POS Products
   // loads. Images now load lazily via URL when each card renders.
   try {
-    // Odoo 16+: only pos_categ_ids (Many2many) exists
-    allProducts = await doFetch(['id', 'name', 'pos_categ_ids', 'list_price', 'taxes_id', 'default_code']);
+    // Odoo 16+: only pos_categ_ids (Many2many) exists.
+    // product_variant_id = the product.product (variant) id — REQUIRED for the
+    // order line's product_id (Odoo expects a variant, not the template id).
+    allProducts = await doFetch(['id', 'name', 'pos_categ_ids', 'list_price', 'taxes_id', 'default_code', 'product_variant_id']);
   } catch (e1) {
     try {
       // Odoo 13-15: only pos_categ_id (Many2one) exists
-      allProducts = await doFetch(['id', 'name', 'pos_categ_id', 'list_price', 'taxes_id', 'default_code']);
+      allProducts = await doFetch(['id', 'name', 'pos_categ_id', 'list_price', 'taxes_id', 'default_code', 'product_variant_id']);
     } catch (e2) {
       // Neither field exists — get products without category info
-      allProducts = await doFetch(['id', 'name', 'list_price', 'taxes_id', 'default_code']);
+      allProducts = await doFetch(['id', 'name', 'list_price', 'taxes_id', 'default_code', 'product_variant_id']);
     }
   }
 
@@ -87,7 +89,10 @@ export const preloadAllProducts = async () => {
     // Always lazy-load images via Odoo's binary endpoint — keeps the bulk
     // payload small. FlashList will fetch each image when its card renders.
     const imageUrl = `${baseUrl}/web/image?model=product.template&id=${p.id}&field=image_128&_ts=${_preloadTs}`;
-    return { ...p, product_name: p.name || '', image_url: imageUrl };
+    // variantId = product.product id; p.id stays the template id (for keying,
+    // image URL, price map). variantId is what the order line must use.
+    const variantId = Array.isArray(p.product_variant_id) ? p.product_variant_id[0] : (p.product_variant_id || null);
+    return { ...p, product_name: p.name || '', image_url: imageUrl, variantId };
   });
   _allProductsCacheTime = Date.now();
   _allProductsCacheDb = `${baseUrl}::${dbName}`;
@@ -109,13 +114,15 @@ export const fetchProductsByPosCategoryId = async (posCategoryId) => {
 
   const { baseUrl, dbName, headers } = await _buildOdooHeaders();
   // PERFORMANCE: drop image_128 from the bulk fetch — load images lazily by URL.
-  const baseFields = ['id', 'name', 'list_price', 'default_code'];
+  // product_variant_id = the product.product (variant) id needed for order lines.
+  const baseFields = ['id', 'name', 'list_price', 'default_code', 'product_variant_id'];
 
   const _ts = Date.now();
   const toProduct = (p) => ({
     ...p,
     product_name: p.name || '',
     image_url: `${baseUrl}/web/image?model=product.template&id=${p.id}&field=image_128&_ts=${_ts}`,
+    variantId: Array.isArray(p.product_variant_id) ? p.product_variant_id[0] : (p.product_variant_id || null),
   });
 
   const doDirectFetch = async (domain, fields) => {
@@ -560,15 +567,15 @@ export const fetchProductsOdoo = async ({ offset, limit, searchText, categoryId,
 
   let products;
   try {
-    // Odoo 16+: pos_categ_ids only
-    products = await doDirectFetch(["id", "name", "list_price", "default_code", "uom_id", "image_128", "pos_categ_ids"]);
+    // Odoo 16+: pos_categ_ids only. product_variant_id = the variant id for order lines.
+    products = await doDirectFetch(["id", "name", "list_price", "default_code", "uom_id", "image_128", "pos_categ_ids", "product_variant_id"]);
   } catch (e1) {
     try {
       // Odoo 13-15: pos_categ_id only
-      products = await doDirectFetch(["id", "name", "list_price", "default_code", "uom_id", "image_128", "pos_categ_id"]);
+      products = await doDirectFetch(["id", "name", "list_price", "default_code", "uom_id", "image_128", "pos_categ_id", "product_variant_id"]);
     } catch (e2) {
       // Neither field — get products without category info
-      products = await doDirectFetch(["id", "name", "list_price", "default_code", "uom_id", "image_128"]);
+      products = await doDirectFetch(["id", "name", "list_price", "default_code", "uom_id", "image_128", "product_variant_id"]);
     }
   }
 
@@ -590,6 +597,7 @@ export const fetchProductsOdoo = async ({ offset, limit, searchText, categoryId,
       price: p.list_price || 0,
       code: p.default_code || "",
       uom: p.uom_id ? { uom_id: p.uom_id[0], uom_name: p.uom_id[1] } : null,
+      variantId: Array.isArray(p.product_variant_id) ? p.product_variant_id[0] : (p.product_variant_id || null),
     };
   });
 };
@@ -1579,7 +1587,9 @@ export const createPosOrderOdoo = async ({ partnerId = null, lines = [], session
       const qty = l.qty || l.quantity || 1;
       const subtotal = price_unit * qty;
       return [0, 0, {
-        product_id: l.product_id || l.id,
+        // Prefer the explicit product.product (variant) id; fall back to
+        // remoteId (server product_id) then the template id as last resort.
+        product_id: l.product_id || l.remoteId || l.id,
         qty,
         price_unit,
         name: l.name || l.product_name || '',
@@ -2060,6 +2070,7 @@ export const addLineToOrderOdoo = async ({ orderId, productId, qty = 1, price_un
     const data = await response.json();
 
     if (data.error) {
+      console.warn('[addLineToOrderOdoo] Odoo rejected line add for product', productId, '-', data.error?.data?.message || data.error?.message || data.error);
       return { error: data.error };
     }
 
