@@ -43,8 +43,8 @@ const pickMessage = (error) => {
 // user. Retrying is SAFE: isNetworkError() is only true when the server never
 // responded (no error.response), so the request never landed — it cannot have
 // created/changed an order. The popup appears only after all retries fail.
-const MAX_SILENT_RETRIES = 5;   // background retries before showing the popup
-const RETRY_DELAY = 800;        // ms between tries (~4s total before the popup)
+const MAX_SILENT_RETRIES = 8;   // background retries before showing the popup
+const RETRY_DELAY = 1500;       // ms between tries (~12s total — rides out cloud cold-starts)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let installed = false;
