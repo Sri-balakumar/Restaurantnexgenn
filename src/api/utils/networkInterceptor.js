@@ -26,6 +26,13 @@ const isNetworkError = (error) => {
   return false;
 };
 
+// The popup should appear ONLY for the login request (so the user knows the
+// server is unreachable when signing in). Every other request retries silently
+// in the background and, if it still fails, rejects quietly with NO popup — the
+// screen re-fetches on next focus/interaction once the server is reachable.
+const isLoginRequest = (config) =>
+  typeof config?.url === 'string' && config.url.includes('/web/session/authenticate');
+
 const pickMessage = (error) => {
   if (error?.code === 'ECONNABORTED') {
     return {
@@ -76,8 +83,11 @@ export function installNetworkInterceptor() {
         return axios.request({ ...config, __retryCount: attempt + 1 });
       }
 
-      // All retries failed → the server (local or cloud) is genuinely
-      // unreachable → show the popup.
+      // All silent retries failed. Popup ONLY for the login request; every
+      // other request rejects quietly (no popup) — background retry is enough.
+      if (!isLoginRequest(config)) return Promise.reject(error);
+
+      // Login could not reach the server → show the popup.
       return new Promise((resolve, reject) => {
         const { show } = useNetworkErrorStore.getState();
         const { title, message } = pickMessage(error);
