@@ -39,6 +39,14 @@ const pickMessage = (error) => {
   };
 };
 
+// Silently retry a genuine network failure a few times before bothering the
+// user. Retrying is SAFE: isNetworkError() is only true when the server never
+// responded (no error.response), so the request never landed — it cannot have
+// created/changed an order. The popup appears only after all retries fail.
+const MAX_SILENT_RETRIES = 5;   // background retries before showing the popup
+const RETRY_DELAY = 800;        // ms between tries (~4s total before the popup)
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 let installed = false;
 
 export function installNetworkInterceptor() {
@@ -47,17 +55,29 @@ export function installNetworkInterceptor() {
 
   axios.interceptors.response.use(
     (response) => response,
-    (error) => {
+    async (error) => {
       if (!isNetworkError(error)) return Promise.reject(error);
 
       const config = error.config;
-      // Avoid prompting twice for the same retried request.
+      // A manual "Retry" that failed again, or a request with no config — don't
+      // loop or prompt again.
       if (!config || config.__networkRetried) return Promise.reject(error);
 
-      // Background polling can opt out (logo fetch, etc.). Default behavior:
-      // any genuine connectivity failure shows the popup, on any page.
+      // Background polling can opt out (logo fetch, etc.).
       if (config.__skipNetworkErrorPopup) return Promise.reject(error);
 
+      // Silently retry in the background up to MAX_SILENT_RETRIES. Any retry
+      // that succeeds resolves normally with NO popup — so transient blips on
+      // Home / new-order never bother the user. The counter re-enters this same
+      // interceptor and stops the recursion once the limit is reached.
+      const attempt = config.__retryCount || 0;
+      if (attempt < MAX_SILENT_RETRIES) {
+        await sleep(RETRY_DELAY);
+        return axios.request({ ...config, __retryCount: attempt + 1 });
+      }
+
+      // All retries failed → the server (local or cloud) is genuinely
+      // unreachable → show the popup.
       return new Promise((resolve, reject) => {
         const { show } = useNetworkErrorStore.getState();
         const { title, message } = pickMessage(error);
@@ -66,7 +86,7 @@ export function installNetworkInterceptor() {
           message,
           onRetry: async () => {
             try {
-              const retryConfig = { ...config, __networkRetried: true };
+              const retryConfig = { ...config, __networkRetried: true, __retryCount: 0 };
               const res = await axios.request(retryConfig);
               resolve(res);
             } catch (e) {
