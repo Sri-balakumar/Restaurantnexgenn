@@ -796,13 +796,14 @@ const POSProducts = ({ navigation, route }) => {
             }
           });
 
-          // Fetch all products to map product_id → tmpl_id + lst_price + taxes_id
+          // Fetch POS products to map product_id → tmpl_id + lst_price + taxes_id
           const allProdResp = await fetch(`${baseUrl}/web/dataset/call_kw`, {
             method: 'POST', headers,
-            body: JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { model: 'product.product', method: 'search_read', args: [[]], kwargs: { fields: ['id', 'product_tmpl_id', 'lst_price', 'list_price', 'taxes_id'], limit: 5000 } } }),
+            body: JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { model: 'product.product', method: 'search_read', args: [[['available_in_pos', '=', true]]], kwargs: { fields: ['id', 'product_tmpl_id', 'lst_price', 'list_price', 'taxes_id'], limit: 5000 } } }),
           });
           const allProdData = await allProdResp.json();
           const allProds = allProdData?.result || [];
+          console.log('[POS-PRODUCTS]', `variants: ${allProds.length} POS product variants loaded (available_in_pos=true)`);
           const prodMap = {};
           allProds.forEach(p => {
             prodMap[p.id] = {
@@ -1429,26 +1430,37 @@ const POSProducts = ({ navigation, route }) => {
     }
   }, []);
 
-  // Load categories on mount — use same API as home screen "Our Specials"
+  // Load categories on mount — use same API as home screen "Our Specials".
+  // These two calls are deliberately NOT in a Promise.all: product.category is
+  // only used elsewhere in the screen, and pairing them meant a slow or failing
+  // product.category request held the category strip on "Loading categories..."
+  // even though pos.category had already come back.
   useEffect(() => {
+    // pos.category — drives the category strip. Render as soon as it lands.
     (async () => {
       try {
-        const [homeCategories, prodResp] = await Promise.all([
-          fetchCategoriesOdoo({ offset: 0, limit: 100 }),
-          fetchProductCategoriesOdoo(),
-        ]);
+        const homeCategories = await fetchCategoriesOdoo({ offset: 0, limit: 100 });
         const catList = Array.isArray(homeCategories) ? homeCategories : [];
         // Map home-screen format (_id, name) to pos format (id, name)
-        const mapped = catList.map(c => ({ id: c._id || c.id, name: c.name || c.category_name || '' }));
-        setPosCategories(mapped);
-        setProductCategories(Array.isArray(prodResp) ? prodResp : (prodResp?.result ?? []));
+        setPosCategories(catList.map(c => ({ id: c._id || c.id, name: c.name || c.category_name || '' })));
       } catch (e) {
         // Fallback: try raw pos categories
         try {
           const posResp = await fetchPosCategoriesOdoo();
-          const posListRaw = Array.isArray(posResp) ? posResp : (posResp?.result ?? []);
-          setPosCategories(posListRaw);
-        } catch (_) {}
+          setPosCategories(Array.isArray(posResp) ? posResp : (posResp?.result ?? []));
+        } catch (err) {
+          console.log('[POS-PRODUCTS]', `categories FAILED -> ${err?.message || err}`);
+        }
+      }
+    })();
+
+    // product.category — independent; its failure must not block the strip.
+    (async () => {
+      try {
+        const prodResp = await fetchProductCategoriesOdoo();
+        setProductCategories(Array.isArray(prodResp) ? prodResp : (prodResp?.result ?? []));
+      } catch (err) {
+        console.log('[POS-PRODUCTS]', `product.category failed (non-blocking) -> ${err?.message || err}`);
       }
     })();
   }, []);
@@ -1459,9 +1471,12 @@ const POSProducts = ({ navigation, route }) => {
     let mounted = true;
     (async () => {
       try {
+        console.log('[POS-PRODUCTS]', 'panel opened -> calling preloadAllProducts()');
         const all = await preloadAllProducts();
         if (mounted) setAllCachedProducts(all);
-      } catch (err) {}
+      } catch (err) {
+        console.log('[POS-PRODUCTS]', `panel load FAILED -> ${err?.message || err}`);
+      }
     })();
     return () => { mounted = false; };
   }, [showProducts]);

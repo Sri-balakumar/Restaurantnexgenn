@@ -4,6 +4,41 @@ let _allProductsCacheTime = 0;
 let _allProductsCacheDb = null; // tracks which DB the cache belongs to
 const PRODUCT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// pos.category cache — categories change far less often than products, and the
+// products panel re-mounts on every open. Without this, each open re-fetched
+// the full category list over the network.
+let _posCategoriesCache = null;
+let _posCategoriesCacheTime = 0;
+let _posCategoriesCacheDb = null;
+const POS_CATEGORY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Only products ticked "Available in POS" belong in the POS product list.
+// Without this the app pulls every product.template in the database
+// (inventory, purchase-only, services), which is not what the POS web
+// client shows. Mirrors the domain Odoo's own POS uses on load.
+const POS_AVAILABLE_DOMAIN = ['available_in_pos', '=', true];
+
+// Diagnostic logging for product loads. Watch it live with:
+//   npm run logcat          (adb logcat -s ReactNativeJS:V ReactNative:V *:E)
+// then filter on the [POS-PRODUCTS] tag.
+const _posLog = (...args) => console.log('[POS-PRODUCTS]', ...args);
+
+// search_count on product.template — powers the dev-only "N of M" line that
+// shows how many records the available_in_pos filter is holding back.
+const _countProductTemplates = async (baseUrl, headers, domain) => {
+  const res = await axios.post(
+    `${baseUrl}/web/dataset/call_kw`,
+    {
+      jsonrpc: '2.0',
+      method: 'call',
+      params: { model: 'product.template', method: 'search_count', args: [domain], kwargs: {} },
+    },
+    { headers }
+  );
+  if (res.data && res.data.error) throw new Error('search_count failed');
+  return res.data.result || 0;
+};
+
 // Helper: build headers from AsyncStorage session info
 const _buildOdooHeaders = async () => {
   const AsyncStorage = require('@react-native-async-storage/async-storage').default;
@@ -57,6 +92,9 @@ const _filterByPosCategory = (products, catId) => {
 // Preload all products into cache
 export const preloadAllProducts = async () => {
   const { baseUrl, dbName, headers } = await _buildOdooHeaders();
+  // Logged before any network call so the line appears even when the fetch
+  // fails — the callers swallow errors, so a silent throw is invisible.
+  _posLog(`preload: START -> ${baseUrl} (domain available_in_pos=true)`);
   // Try with pos_categ_ids first (Odoo 16+), fallback to pos_categ_id only
   const doFetch = async (fields) => {
     const response = await axios.post(
@@ -67,7 +105,7 @@ export const preloadAllProducts = async () => {
         params: {
           model: 'product.template',
           method: 'search_read',
-          args: [[]],
+          args: [[POS_AVAILABLE_DOMAIN]],
           kwargs: { fields, limit: 2000, order: 'name asc' },
         },
       },
@@ -90,12 +128,19 @@ export const preloadAllProducts = async () => {
     // order line's product_id (Odoo expects a variant, not the template id).
     allProducts = await doFetch(['id', 'name', 'pos_categ_ids', 'list_price', 'taxes_id', 'default_code', 'product_variant_id']);
   } catch (e1) {
+    _posLog(`preload: tier 1 (pos_categ_ids) failed -> ${e1?.message || e1}`);
     try {
       // Odoo 13-15: only pos_categ_id (Many2one) exists
       allProducts = await doFetch(['id', 'name', 'pos_categ_id', 'list_price', 'taxes_id', 'default_code', 'product_variant_id']);
     } catch (e2) {
-      // Neither field exists — get products without category info
-      allProducts = await doFetch(['id', 'name', 'list_price', 'taxes_id', 'default_code', 'product_variant_id']);
+      _posLog(`preload: tier 2 (pos_categ_id) failed -> ${e2?.message || e2}`);
+      try {
+        // Neither field exists — get products without category info
+        allProducts = await doFetch(['id', 'name', 'list_price', 'taxes_id', 'default_code', 'product_variant_id']);
+      } catch (e3) {
+        _posLog(`preload: ALL TIERS FAILED -> ${e3?.message || e3}`);
+        throw e3;
+      }
     }
   }
 
@@ -111,6 +156,19 @@ export const preloadAllProducts = async () => {
   });
   _allProductsCacheTime = Date.now();
   _allProductsCacheDb = `${baseUrl}::${dbName}`;
+
+  _posLog(`preload: ${_allProductsCache.length} POS products loaded (available_in_pos=true)`);
+  // Dev-only: one extra search_count so the log shows what the filter removed.
+  if (typeof __DEV__ !== 'undefined' && __DEV__) {
+    try {
+      const total = await _countProductTemplates(baseUrl, headers, []);
+      const kept = _allProductsCache.length;
+      _posLog(`preload: filter hid ${total - kept} non-POS products (${kept} of ${total} total product.template)`);
+    } catch (_) {
+      _posLog('preload: could not read total product count (search_count failed)');
+    }
+  }
+
   return _allProductsCache;
 };
 
@@ -147,7 +205,7 @@ export const fetchProductsByPosCategoryId = async (posCategoryId) => {
         jsonrpc: '2.0', method: 'call',
         params: {
           model: 'product.template', method: 'search_read',
-          args: [domain],
+          args: [[POS_AVAILABLE_DOMAIN, ...domain]],
           kwargs: { fields, limit: 2000, order: 'name asc' },
         },
       },
@@ -161,18 +219,22 @@ export const fetchProductsByPosCategoryId = async (posCategoryId) => {
 
   // Tier 1: Odoo 16+ — server-side filter by pos_categ_ids (Many2many)
   try {
-    return await doDirectFetch(
+    const rows = await doDirectFetch(
       [['pos_categ_ids', 'in', [catId]]],
       [...baseFields, 'pos_categ_ids']
     );
+    _posLog(`category ${catId}: ${rows.length} POS products (tier 1, pos_categ_ids)`);
+    return rows;
   } catch (_) {}
 
   // Tier 2: Odoo 13-15 — server-side filter by pos_categ_id (Many2one)
   try {
-    return await doDirectFetch(
+    const rows = await doDirectFetch(
       [['pos_categ_id', '=', catId]],
       [...baseFields, 'pos_categ_id']
     );
+    _posLog(`category ${catId}: ${rows.length} POS products (tier 2, pos_categ_id)`);
+    return rows;
   } catch (_) {}
 
   // Tier 3: Fallback — load all products and filter client-side
@@ -182,16 +244,24 @@ export const fetchProductsByPosCategoryId = async (posCategoryId) => {
       || (Date.now() - _allProductsCacheTime > PRODUCT_CACHE_TTL)
       || _allProductsCacheDb !== cacheKey;
     if (cacheStale) await preloadAllProducts();
-    return _filterByPosCategory(_allProductsCache, catId);
+    const rows = _filterByPosCategory(_allProductsCache, catId);
+    _posLog(`category ${catId}: ${rows.length} POS products (tier 3, client-side filter of ${_allProductsCache?.length ?? 0} cached)`);
+    return rows;
   } catch (_) {
+    _posLog(`category ${catId}: all 3 tiers failed, returning 0 products`);
     return [];
   }
 };
 // Fetch all product categories from Odoo (product.category)
 export const fetchProductCategoriesOdoo = async () => {
   try {
-    const { DEFAULT_ODOO_DB, DEFAULT_ODOO_BASE_URL } = require('../config/odooConfig');
-    const url = (DEFAULT_ODOO_BASE_URL || ODOO_BASE_URL || '').replace(/\/$/, '') + '/web/dataset/call_kw';
+    // Use the device's configured server + session, like every other call here.
+    // This previously used DEFAULT_ODOO_BASE_URL, which is "" — producing the
+    // relative URL "/web/dataset/call_kw". That can never resolve in React
+    // Native, so the request failed and the interceptor silently retried it
+    // 8 x 1500ms (~12s) while the POS panel sat on "Loading categories...".
+    const { baseUrl, headers } = await _buildOdooHeaders();
+    const url = `${baseUrl}/web/dataset/call_kw`;
     const response = await axios.post(
       url,
       {
@@ -207,7 +277,7 @@ export const fetchProductCategoriesOdoo = async () => {
           },
         },
       },
-      { headers: { 'Content-Type': 'application/json', 'X-Odoo-Database': DEFAULT_ODOO_DB } }
+      { headers }
     );
     if (response.data && response.data.error) {
       throw new Error(response.data.error.message || JSON.stringify(response.data.error) || 'Odoo error');
@@ -235,6 +305,14 @@ export const fetchPosCategoriesOdoo = async () => {
     headers['X-Openerp-Session-Id'] = sessionId;
   }
 
+  const cacheKey = `${baseUrl}::${dbName}`;
+  if (_posCategoriesCache
+      && (Date.now() - _posCategoriesCacheTime < POS_CATEGORY_CACHE_TTL)
+      && _posCategoriesCacheDb === cacheKey) {
+    _posLog(`categories: ${_posCategoriesCache.length} from cache (instant)`);
+    return _posCategoriesCache;
+  }
+
   const doFetch = async (fields) => {
     const response = await axios.post(url, {
       jsonrpc: '2.0', method: 'call',
@@ -250,20 +328,45 @@ export const fetchPosCategoriesOdoo = async () => {
     return response.data.result || [];
   };
 
-  // Try with all fields (Odoo 16+)
-  try {
-    return await doFetch(['id', 'name', 'parent_id', 'sequence', 'pos_config_ids', 'has_image', 'image_128', 'image_512']);
-  } catch (_) {}
+  const _t0 = Date.now();
+  const _finish = (rows) => {
+    // Only cache a non-empty result. Caching [] would pin the category strip
+    // on "Loading categories..." for the whole TTL after one bad response.
+    if (Array.isArray(rows) && rows.length > 0) {
+      _posCategoriesCache = rows;
+      _posCategoriesCacheTime = Date.now();
+      _posCategoriesCacheDb = cacheKey;
+    } else {
+      _posLog('categories: empty result — not caching, will retry next open');
+    }
+    _posLog(`categories: ${rows.length} loaded in ${Date.now() - _t0}ms (no inline images)`);
+    return rows;
+  };
 
-  // Try without image_512 (Odoo 13-15)
+  // PERFORMANCE: never request image_128/image_512 here. Each pos.category
+  // base64 image is 10-200KB; inlining them was making this call take many
+  // seconds while the panel showed "Loading categories...". The mapper in
+  // fetchCategoriesOdoo already falls back to a /web/image URL, so tiles
+  // still show artwork — it just loads lazily per tile instead of up front.
+  // (Same fix already applied to the product preload.)
   try {
-    return await doFetch(['id', 'name', 'parent_id', 'sequence', 'pos_config_ids', 'image_128']);
-  } catch (_) {}
+    return _finish(await doFetch(['id', 'name', 'parent_id', 'sequence', 'pos_config_ids', 'has_image']));
+  } catch (e1) {
+    _posLog(`categories: tier 1 failed -> ${e1?.message || e1}`);
+  }
+
+  // Odoo 13-15: no has_image / pos_config_ids
+  try {
+    return _finish(await doFetch(['id', 'name', 'parent_id', 'sequence', 'pos_config_ids']));
+  } catch (e2) {
+    _posLog(`categories: tier 2 failed -> ${e2?.message || e2}`);
+  }
 
   // Minimal fields — always safe
   try {
-    return await doFetch(['id', 'name', 'parent_id', 'sequence']);
+    return _finish(await doFetch(['id', 'name', 'parent_id', 'sequence']));
   } catch (error) {
+    _posLog(`categories: ALL TIERS FAILED -> ${error?.message || error}`);
     throw error;
   }
 };
@@ -540,6 +643,7 @@ export const fetchProductsOdoo = async ({ offset, limit, searchText, categoryId,
         const term = searchText.trim().toLowerCase();
         filtered = filtered.filter(p => (p.product_name || p.name || '').toLowerCase().includes(term));
       }
+      _posLog(`list: ${filtered.length} POS products (from cache, category ${catId}${searchText ? `, search "${searchText}"` : ''})`);
       return filtered;
     } catch (cacheErr) {
       // cache fetch failed — fall through to direct fetch below
@@ -563,7 +667,7 @@ export const fetchProductsOdoo = async ({ offset, limit, searchText, categoryId,
         params: {
           model: "product.template",
           method: "search_read",
-          args: [textDomain],
+          args: [[POS_AVAILABLE_DOMAIN, ...textDomain]],
           kwargs: {
             fields,
             limit: fetchLimit,
@@ -595,9 +699,16 @@ export const fetchProductsOdoo = async ({ offset, limit, searchText, categoryId,
   }
 
   // Apply client-side category filter if needed (cache was unavailable)
+  const _fetchedCount = products.length;
   if (catId) {
     products = _filterByPosCategory(products, catId);
   }
+  _posLog(
+    `list: ${products.length} POS products (direct fetch` +
+    (catId ? `, category ${catId} narrowed from ${_fetchedCount}` : '') +
+    (searchText && searchText.trim() ? `, search "${searchText.trim()}"` : '') +
+    `, limit ${fetchLimit}, offset ${fetchOffset})`
+  );
 
   const _fetchTs = Date.now();
   return products.map((p) => {
