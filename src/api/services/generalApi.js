@@ -23,6 +23,21 @@ const _buildOdooHeaders = async () => {
   return { baseUrl, dbName, headers };
 };
 
+// Odoo stores every datetime in UTC and renders it back in the user's timezone.
+// The KOT scheduler picks a time in the DEVICE's local timezone, so convert
+// local -> UTC before writing preset_time — exactly what the web POS does.
+// Without this the raw local time is stored as if it were UTC and the order
+// shows shifted by the tz offset (e.g. 12:20 picked -> displayed 17:50 at +5:30).
+// dateStr: 'YYYY-MM-DD', timeStr: 'HH:MM' (both local). Returns 'YYYY-MM-DD HH:MM:SS' in UTC.
+export const toOdooUtcDatetime = (dateStr, timeStr) => {
+  const [y, m, d] = String(dateStr || '').split('-').map(Number);
+  const [hh, mm] = String(timeStr || '').split(':').map(Number);
+  if (!y || !m || !d || Number.isNaN(hh) || Number.isNaN(mm)) return null;
+  const local = new Date(y, m - 1, d, hh, mm, 0, 0); // interpreted in device local tz
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())} ${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}:00`;
+};
+
 // Helper: filter product list by pos category ID (checks both Many2one and Many2many fields)
 const _filterByPosCategory = (products, catId) => {
   if (!catId) return products;

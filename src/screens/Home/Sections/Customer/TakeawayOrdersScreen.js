@@ -20,7 +20,7 @@ const TakeawayOrdersScreen = ({ navigation, route }) => {
       // Fetch presets, orders, and tax rates in parallel
       const [presetsResp, ordersResp, taxResp] = await Promise.all([
         fetchPosPresets(),
-        fetchOrders({ sessionId, limit: 500, fields: ['id','name','state','amount_total','table_id','create_date','preset_id','lines','floating_order_name'] }),
+        fetchOrders({ sessionId, limit: 500, fields: ['id','name','state','amount_total','table_id','create_date','preset_id','preset_time','lines','floating_order_name'] }),
         callKw('account.tax', 'search_read', [[]], { fields: ['id', 'amount', 'price_include'], limit: 500 }),
       ]);
       const presets = (presetsResp && presetsResp.result) || [];
@@ -133,19 +133,31 @@ const TakeawayOrdersScreen = ({ navigation, route }) => {
     }
   };
 
+  // Odoo sends datetimes as 'YYYY-MM-DD HH:MM:SS' in UTC with no timezone marker.
+  // new Date() would read that as LOCAL time and print the UTC digits raw (e.g.
+  // 02:54 instead of 08:24), so parse it explicitly as UTC. The getX() calls below
+  // are local-time getters, which gives the correct device-local rendering.
+  const parseOdooUtc = (dateStr) => {
+    if (!dateStr) return null;
+    const s = String(dateStr).trim();
+    if (/[Zz]$|[+-]\d{2}:?\d{2}$/.test(s)) return new Date(s); // already has a tz
+    return new Date(s.replace(' ', 'T') + 'Z');
+  };
+
   const formatDate = (dateStr) => {
-    if (!dateStr) return '';
-    try {
-      const d = new Date(dateStr);
-      const day = String(d.getDate()).padStart(2, '0');
-      const mon = String(d.getMonth() + 1).padStart(2, '0');
-      const year = d.getFullYear();
-      const hr = String(d.getHours()).padStart(2, '0');
-      const min = String(d.getMinutes()).padStart(2, '0');
-      return `${day}/${mon}/${year}  ${hr}:${min}`;
-    } catch (_) {
-      return dateStr;
-    }
+    const d = parseOdooUtc(dateStr);
+    if (!d || Number.isNaN(d.getTime())) return dateStr || '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}  ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  // Scheduled takeout slot (preset_time) rendered in device local time — this is
+  // the time the cashier picked, and what the web shows in its Takeout badge.
+  const formatScheduledTime = (dateStr) => {
+    const d = parseOdooUtc(dateStr);
+    if (!d || Number.isNaN(d.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
   const renderItem = ({ item, index }) => {
@@ -163,6 +175,9 @@ const TakeawayOrdersScreen = ({ navigation, route }) => {
             {customerName ? <Text style={s.cardTitle}>{customerName}</Text> : null}
             <Text style={customerName ? s.cardOrderRef : s.cardTitle}>{orderRef}</Text>
             <Text style={s.cardDate}>{formatDate(item.create_date)}</Text>
+            {item.preset_time ? (
+              <Text style={s.cardDate}>🕐 {t.takeaway || 'Takeout'}: {formatScheduledTime(item.preset_time)}</Text>
+            ) : null}
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={s.cardAmount}>{formatCurrency(item.amount_total_incl ?? item.amount_total ?? 0)}</Text>

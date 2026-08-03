@@ -2,7 +2,7 @@ import React, { useEffect, useCallback, useState, useMemo, useRef } from 'react'
 import { View, Text, TextInput, FlatList, TouchableOpacity, ScrollView, Modal, Pressable, StyleSheet as RNStyleSheet, InteractionManager, Platform, Alert, ActivityIndicator } from 'react-native';
 import { NavigationHeader } from '@components/Header';
 import { ProductsList } from '@components/Product';
-import { fetchPosPresets, addLineToOrderOdoo, updateOrderLineOdoo, removeOrderLineOdoo, fetchPosOrderById, fetchOrderLinesByIds, fetchPosCategoriesOdoo, fetchProductCategoriesOdoo, fetchCategoriesOdoo, preloadAllProducts, createDraftPosOrderOdoo, fetchPosPaymentMethodsOdoo, createPosOrderOdoo, createPosPaymentOdoo, fetchPOSSessions, fetchPricelistsOdoo, fetchPricelistItemsOdoo, updatePosOrderFields, fetchPresetSchedule } from '@api/services/generalApi';
+import { fetchPosPresets, addLineToOrderOdoo, updateOrderLineOdoo, removeOrderLineOdoo, fetchPosOrderById, fetchOrderLinesByIds, fetchPosCategoriesOdoo, fetchProductCategoriesOdoo, fetchCategoriesOdoo, preloadAllProducts, createDraftPosOrderOdoo, fetchPosPaymentMethodsOdoo, createPosOrderOdoo, createPosPaymentOdoo, fetchPOSSessions, fetchPricelistsOdoo, fetchPricelistItemsOdoo, updatePosOrderFields, fetchPresetSchedule, toOdooUtcDatetime } from '@api/services/generalApi';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { FlashList } from '@shopify/flash-list';
 import { formatData } from '@utils/formatters';
@@ -713,9 +713,11 @@ const POSProducts = ({ navigation, route }) => {
         const mm = String(d.getMonth() + 1).padStart(2, '0');
         const dd = String(d.getDate()).padStart(2, '0');
         const dateStr = `${d.getFullYear()}-${mm}-${dd}`;
-        odooFields.shipping_date = dateStr;
+        // Do NOT set shipping_date (flags order for shipping → forces a customer
+        // with an address). The web POS only sets preset_time for scheduling.
         if (kotSelectedTime) {
-          odooFields.preset_time = `${dateStr} ${kotSelectedTime}:00`;
+          // Convert the picked local time to UTC — Odoo stores datetimes in UTC.
+          odooFields.preset_time = toOdooUtcDatetime(dateStr, kotSelectedTime);
         }
       }
       if (Object.keys(odooFields).length > 0) {

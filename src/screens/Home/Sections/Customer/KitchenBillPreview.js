@@ -22,7 +22,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import kotService from '../../../../api/services/kotService';
-import { updatePosOrderFields } from '../../../../api/services/generalApi';
+import { updatePosOrderFields, toOdooUtcDatetime } from '../../../../api/services/generalApi';
 import useTranslation from '../../../../hooks/useTranslation';
 
 // ── Snapshot store (tracks what was already printed) ───────────
@@ -111,9 +111,13 @@ const KitchenBillPreview = ({ navigation, route }) => {
       const parts = scheduledDate.split('/');
       if (parts.length === 3) {
         const dateStr = `${parts[2]}-${parts[0]}-${parts[1]}`;
-        fields.shipping_date = dateStr;
+        // NOTE: do NOT set shipping_date — that flags the order for shipping and
+        // makes Odoo require a customer WITH an address (the "select the customer /
+        // incorrect address for shipping" popup). The web POS only sets preset_time
+        // for scheduling; match it so takeout works with no customer.
         if (scheduledTime) {
-          fields.preset_time = `${dateStr} ${scheduledTime}:00`;
+          // Convert the picked local time to UTC — Odoo stores datetimes in UTC.
+          fields.preset_time = toOdooUtcDatetime(dateStr, scheduledTime);
         }
       }
     }
