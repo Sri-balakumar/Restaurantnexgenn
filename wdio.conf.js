@@ -31,7 +31,7 @@ exports.config = {
       platformName: 'Android',
       'appium:deviceName': 'attached',
       'appium:automationName': 'UiAutomator2',
-      'appium:appPackage': 'com.danat.alphalize',
+      'appium:appPackage': 'com.alphalize.restaurant',
       'appium:appActivity': '.MainActivity',
       'appium:noReset': true,
       'appium:fullReset': false,

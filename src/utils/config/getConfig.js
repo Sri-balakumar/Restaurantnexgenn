@@ -22,7 +22,21 @@ export const getConfig = (appName) => {
       packageName: process.env.EXPO_PUBLIC_PACKAGE_NAME_ALPHA,
       projectId: process.env.EXPO_PUBLIC_PROJECT_ID_ALPHA,
     },
+    // NEXGENN Restaurant — separate app from ALPHA above (own package + EAS
+    // project). Carries an explicit slug: the other profiles derive one by
+    // lowercasing appName, which only works for single-word names.
+    [process.env.EXPO_PUBLIC_APP_NAME_RESTAURANT]: {
+      appName: process.env.EXPO_PUBLIC_APP_NAME_RESTAURANT,
+      slug: process.env.EXPO_PUBLIC_SLUG_RESTAURANT,
+      packageName: process.env.EXPO_PUBLIC_PACKAGE_NAME_RESTAURANT,
+      projectId: process.env.EXPO_PUBLIC_PROJECT_ID_RESTAURANT,
+    },
   };
 
-  return configs[appName] || {};
+  const config = configs[appName] || {};
+  // Fall back to the old lowercase-the-name behaviour for profiles without one.
+  if (config.appName && !config.slug) {
+    config.slug = config.appName.toLowerCase();
+  }
+  return config;
 };

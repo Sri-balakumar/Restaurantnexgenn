@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "NEX GENN Restaurant",
+    "name": "NEXGENN Restaurant",
     "slug": "nexgenn-restaurant",
-    "version": "2.0.1",
+    "version": "2.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -52,7 +52,7 @@
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE"
       ],
-      "package": "com.danat.alphalize",
+      "package": "com.alphalize.restaurant",
       "allowBackup": false,
       "config": {
         "googleMaps": {
@@ -85,9 +85,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "024441aa-3906-4ca7-a7be-e1320d3ccb2b"
+        "projectId": "482ccfcb-ad70-4673-a132-ac132f4b6417"
       }
     },
-    "owner": ""
+    "owner": "setihel"
   }
 }
